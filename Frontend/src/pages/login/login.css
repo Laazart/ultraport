@@ -1,0 +1,81 @@
+.login-page-wrapper {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.left-side {
+  flex: 0 0 60%;
+  background-image: url('https://ultraport.fundacionsofofa.cl/pluginfile.php/1/theme_sofofa_sf/loginbackgroundimage/1789400136/fondo_ultraport.jpg'); 
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+.right-side {
+  background-color: #1a365d;
+  min-width: 400px;
+}
+
+.logo-icon {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.logo-icon div {
+  width: 34px;
+  height: 10px;
+  background-color: #4cb0e3;
+  transform: skew(-20deg);
+}
+
+.logo-text {
+  color: #ffffff;
+  font-size: 38px;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+
+.subtitle {
+  font-size: 16px;
+}
+
+.btn-acceder {
+  background-color: #4cb0e3 !important;
+  border-color: #4cb0e3 !important;
+  color: #ffffff !important;
+  border-radius: 6px;
+  padding: 12px 40px;
+  font-weight: 600;
+}
+
+.btn-acceder:hover,
+.btn-acceder:focus {
+  background-color: #3a90be !important;
+  border-color: #3a90be !important;
+  color: #ffffff !important;
+}
+
+.forgot-password {
+  font-size: 14px;
+  text-decoration: none;
+}
+
+.forgot-password:hover {
+  text-decoration: underline;
+  color: #ffffff;
+}
+
+.sso-section {
+  border-top-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+.sso-title {
+  font-size: 13px;
+  letter-spacing: 1px;
+}
+
+
+.ms-icon .red { background-color: #f25022; }
+.ms-icon .green { background-color: #7fba00; }
+.ms-icon .blue { background-color: #00a4ef; }
+.ms-icon .yellow { background-color: #ffb900; }
