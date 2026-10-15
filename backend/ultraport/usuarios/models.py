@@ -70,3 +70,16 @@ class Usuario(AbstractBaseUser, PermissionsMixin):
 
     def __str__(self):
         return f'{self.nombres} {self.apellidos}'
+
+class TokenRecuperacion(models.Model):
+    id_token = models.AutoField(primary_key=True)
+    id_usuario = models.ForeignKey(
+        Usuario, on_delete=models.CASCADE, db_column='id_usuario'
+    )
+    token_hash = models.CharField(max_length=255, unique=True)
+    fecha_creacion = models.DateTimeField(auto_now_add=True)
+    fecha_expiracion = models.DateTimeField()
+    usado = models.BooleanField(default=False)
+
+    class Meta:
+        db_table = 'token_recuperacion'
