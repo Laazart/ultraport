@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import authService from '../../services/auth'
 import './login.css'
+import { useNavigate,Link } from 'react-router-dom'
 
 function Login() {
   const [correo, setCorreo] = useState('');
@@ -70,9 +70,9 @@ function Login() {
             </button>
           </form>
 
-          <a href="#" className="forgot-password d-block text-white text-center mb-5">
+          <Link to="/olvide-contrasena" className="forgot-password d-block text-white text-center mb-5">
             ¿Olvidó su contraseña?
-          </a>
+          </Link>
         </div>
       </div>
     </div>

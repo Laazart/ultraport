@@ -9,7 +9,8 @@ import NotificarInasistencia from './pages/notificarInasistencia/notificarInasis
 import MallaDeTurnos from './pages/mallaDeTurnos/mallaDeTurnos'
 import GestionDeUsuarios from './pages/gestionDeUsuarios/GestionDeUsuarios'
 import ReportesYExportacion from './pages/reportesExportacion/ReportesYExportacion'
-
+import SolicitarRecuperacion from './pages/login/SolicitarRecuperacion';
+import RestablecerPassword from './pages/login/RestablecerPassword';
 import 'bootstrap/dist/css/bootstrap.min.css'
 import 'bootstrap-icons/font/bootstrap-icons.css'
 import 'bootstrap/dist/js/bootstrap.bundle.min.js'
@@ -25,6 +26,8 @@ createRoot(document.getElementById('root')).render(
         <Route path="/malla" element={<MallaDeTurnos />} />
         <Route path="/usuarios" element={<GestionDeUsuarios />} />
         <Route path="/reportes" element={<ReportesYExportacion />} />
+        <Route path="/olvide-contrasena" element={<SolicitarRecuperacion />} />
+        <Route path="/resetear-password" element={<RestablecerPassword />} />
       </Routes>
     </BrowserRouter>
   </StrictMode>,

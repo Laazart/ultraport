@@ -50,7 +50,15 @@ const authService = {
     const userStr = localStorage.getItem('usuario');
     if (userStr) return JSON.parse(userStr);
     return null;
-  }
+  },
+  solicitarRecuperacion: async (correo) => {
+    const response = await axios.post(`${API_URL}recuperar-password/`, { correo });
+    return response.data;
+  },
+  restablecerPassword: async (token, password) => {
+    const response = await axios.post(`${API_URL}restablecer-password/`, { token, password });
+    return response.data;
+  },
 };
 
 export default authService;

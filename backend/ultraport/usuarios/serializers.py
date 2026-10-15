@@ -1,4 +1,6 @@
-from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer 
+from rest_framework import serializers
+from django.contrib.auth.password_validation import validate_password
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     @classmethod
@@ -22,3 +24,15 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
             }
         })
         return data
+
+class SolicitarRecuperacionSerializer(serializers.Serializer):
+    correo = serializers.EmailField()
+
+
+class RestablecerPasswordSerializer(serializers.Serializer):
+    token = serializers.CharField()
+    password = serializers.CharField(write_only=True, min_length=8)
+
+    def validate_password(self, value):
+        validate_password(value)
+        return value

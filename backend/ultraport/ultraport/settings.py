@@ -154,3 +154,9 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
 ]
+
+#no vean mi api key gracias
+RESEND_API_KEY = ''  
+EMAIL_FROM = 'no-reply@devcy.cl'
+FRONTEND_URL = 'http://localhost:5173'
+RECUPERACION_EXPIRA_MINUTOS = 60
