@@ -9,6 +9,9 @@ __pycache__/
 # Base de datos local
 db.sqlite3
 
+# Archivos subidos por usuarios (adjuntos)
+media/
+
 # Archivos de entorno y configuraciones locales
 .env
 .vscode/
