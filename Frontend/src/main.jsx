@@ -9,6 +9,8 @@ import NotificarInasistencia from './pages/notificarInasistencia/notificarInasis
 import MallaDeTurnos from './pages/mallaDeTurnos/mallaDeTurnos'
 import GestionDeUsuarios from './pages/gestionDeUsuarios/GestionDeUsuarios'
 import ReportesYExportacion from './pages/reportesExportacion/ReportesYExportacion'
+import VerUsuario from './pages/gestionDeUsuarios/VerUsuario'
+import FormularioUsuario from './pages/gestionDeUsuarios/FormularioUsuario'
 import SolicitarRecuperacion from './pages/login/SolicitarRecuperacion';
 import RestablecerPassword from './pages/login/RestablecerPassword';
 import 'bootstrap/dist/css/bootstrap.min.css'
@@ -28,6 +30,9 @@ createRoot(document.getElementById('root')).render(
         <Route path="/reportes" element={<ReportesYExportacion />} />
         <Route path="/olvide-contrasena" element={<SolicitarRecuperacion />} />
         <Route path="/resetear-password" element={<RestablecerPassword />} />
+        <Route path="/usuarios/ver/:id" element={<VerUsuario />} />
+        <Route path="/usuarios/nuevo" element={<FormularioUsuario />} />
+        <Route path="/usuarios/editar/:id" element={<FormularioUsuario />} />
       </Routes>
     </BrowserRouter>
   </StrictMode>,

@@ -1,6 +1,12 @@
-from django.urls import path
+from django.urls import path,include
 from rest_framework_simplejwt.views import TokenRefreshView
-from .views import CustomLoginView, LogoutView, RestablecerPasswordView, SolicitarRecuperacionView
+from .views import CustomLoginView, LogoutView, RestablecerPasswordView, SolicitarRecuperacionView, UsuarioViewSet, RolViewSet,  ContratoViewSet
+from rest_framework.routers import DefaultRouter
+
+router = DefaultRouter()
+router.register('usuarios', UsuarioViewSet, basename='usuario')
+router.register('roles', RolViewSet, basename='roles')
+router.register('contratos', ContratoViewSet, basename='contratos')
 
 urlpatterns = [
     path('login/', CustomLoginView.as_view(), name='login'),
@@ -8,5 +14,5 @@ urlpatterns = [
     path('logout/', LogoutView.as_view(), name='logout'),
     path('recuperar-password/', SolicitarRecuperacionView.as_view(), name='solicitar_recuperacion'),
     path('restablecer-password/', RestablecerPasswordView.as_view(), name='restablecer_password'),
+    path('', include(router.urls)),
 ]
-

@@ -1,0 +1,175 @@
+/* ======= GESTIÓN DE USUARIOS CSS (INDEPENDIENTE) =========== */
+
+/* 1. ESTRUCTURA BASE (Heredada del diseño original) */
+.up-shell {
+  min-height: 100vh;
+  background: radial-gradient(ellipse 900px 500px at 50% -10%, rgba(242, 166, 61, 0.08), transparent 60%), #0A1420;
+  color: #E9EEF5;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  padding: 28px 24px 60px;
+}
+.up-topbar {
+  max-width: 1040px;
+  margin: 0 auto 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.up-brand { display: flex; flex-direction: column; gap: 4px; line-height: 1.1; }
+.up-brand .up-logo { height: 28px; width: auto; display: block; }
+.up-brand .sub { font-size: 13px; color: #7E90A8; margin-top: 2px; }
+
+.up-user { display: flex; align-items: center; gap: 14px; }
+.up-user .who { text-align: right; line-height: 1.25; }
+.up-user .who .name { font-size: 14px; font-weight: 600; color: #E9EEF5; }
+.up-user .who .rol { font-size: 12px; color: #7E90A8; }
+
+.up-logout, .up-back {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: transparent; border: 1px solid #1E3349;
+  color: #C7D1DE; padding: 8px 14px; border-radius: 8px;
+  font-size: 13px; cursor: pointer;
+  transition: all .15s ease;
+}
+
+.up-logout:hover { border-color: #E2574C; color: #F2867D; background: rgba(226, 87, 76, 0.08); }
+.up-back:hover { border-color: #F2A63D; color: #F2A63D; background: rgba(242, 166, 61, 0.08); }
+
+.up-subbar { max-width: 1040px; margin: 0 auto 24px; }
+.up-hero { max-width: 1040px; margin: 0 auto; text-align: center; }
+.up-hero h1 { font-size: 26px; font-weight: 600; margin: 0 0 6px; color: #F4F7FB; }
+.up-hero p { font-size: 14px; color: #7E90A8; margin: 0; }
+
+@media (max-width: 480px) {
+  .up-topbar { flex-direction: column; align-items: flex-start; gap: 16px; }
+}
+
+/* 2. ESTILOS ESPECÍFICOS DEL DASHBOARD (Buscador y Tabla) */
+.up-dashboard-container {
+  max-width: 1040px;
+  margin: 0 auto;
+}
+
+/* Buscador */
+.up-search {
+  background: #101C2C;
+  border: 1px solid #1E3349;
+  border-radius: 8px;
+  padding: 0 14px;
+  flex: 1;
+  max-width: 320px;
+  height: 42px;
+  transition: border-color 0.2s;
+}
+.up-search:focus-within { border-color: #F2A63D; }
+.up-search i { color: #7E90A8; }
+.up-search input { color: #E9EEF5 !important; outline: none; box-shadow: none; }
+.up-search input::placeholder { color: #7E90A8; }
+
+/* Botón Principal */
+.btn-primary {
+  background: #F2A63D; color: #0A1420;
+  border: none; padding: 0 18px; height: 42px;
+  border-radius: 8px; font-size: 14px; font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.1s ease;
+}
+.btn-primary:hover { background: #f3b55c; transform: translateY(-1px); }
+
+/* Contenedor de la Tabla */
+.up-table-wrapper {
+  background: #101C2C;
+  border: 1px solid #1E3349;
+  border-radius: 10px;
+  overflow-x: auto;
+}
+
+/* Sobreescribiendo la tabla de Bootstrap para el Dark Theme */
+.table.up-table {
+  color: #C7D1DE;
+  background-color: transparent;
+}
+.table.up-table th {
+  padding: 16px 20px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #7E90A8;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  background-color: rgba(10, 20, 32, 0.4);
+  border-bottom: 1px solid #1E3349;
+}
+.table.up-table td {
+  padding: 16px 20px;
+  font-size: 14px;
+  color: #C7D1DE !important; /* <-- Agrega esta línea con !important */
+  border-bottom: 1px solid #1E3349;
+  background-color: transparent;
+}
+.table.up-table tbody tr:last-child td { border-bottom: none; }
+.table.up-table tbody tr { transition: background 0.15s ease; }
+.table.up-table tbody tr:hover td {
+  background-color: rgba(30, 51, 73, 0.3) !important;
+  color: #E9EEF5;
+}
+.rol-text { color: #A9B6C6; font-size: 13.5px; }
+
+/* Badges (usando la estructura de pill de Bootstrap pero con nuestros colores) */
+.up-status-badge {
+  font-size: 11.5px; padding: 5px 12px; font-weight: 600;
+}
+.up-status-badge.active {
+  background-color: rgba(46, 204, 113, 0.1); color: #2ECC71;
+  border: 1px solid rgba(46, 204, 113, 0.25);
+}
+.up-status-badge.inactive {
+  background-color: rgba(126, 144, 168, 0.1); color: #7E90A8;
+  border: 1px solid rgba(126, 144, 168, 0.25);
+}
+/* Botones de acción */
+.btn-icon {
+  background: transparent; border: 1px solid #1E3349; color: #7E90A8;
+  width: 34px; height: 34px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: all 0.2s ease; font-size: 15px;
+}
+.btn-icon.view:hover { border-color: #F2A63D; color: #F2A63D; background: rgba(242, 166, 61, 0.1); }
+.btn-icon.delete:hover { border-color: #E2574C; color: #F2867D; background: rgba(226, 87, 76, 0.1); }
+
+/* MODAL PERSONALIZADO */
+.up-modal-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(10, 20, 32, 0.85); /* Fondo oscuro transparente */
+  backdrop-filter: blur(4px); /* Difumina el fondo */
+  display: flex; align-items: center; justify-content: center;
+  z-index: 1000;
+}
+.up-modal {
+  background: #101C2C;
+  border: 1px solid #1E3349;
+  border-radius: 12px;
+  padding: 30px;
+  max-width: 400px;
+  width: 90%;
+  text-align: center;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+  animation: modalIn 0.3s ease;
+}
+@keyframes modalIn {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.btn-secondary {
+  background: transparent; border: 1px solid #1E3349; color: #C7D1DE;
+  padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer;
+  transition: all 0.2s;
+}
+.btn-secondary:hover { background: rgba(126, 144, 168, 0.1); color: #FFF; }
+
+.btn-danger {
+  background: #E2574C; border: none; color: #FFF;
+  padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer;
+  transition: all 0.2s;
+}
+.btn-danger:hover { background: #d0453a; }
