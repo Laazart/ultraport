@@ -3,6 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import authService from '../../services/auth';
 import './Home.css';
 
+const ROLES = {
+  ADMINISTRADOR: 'Administrador',
+  PLANIFICADOR: 'Encargado de Asignaciones',
+  TRABAJADOR: 'Trabajador',
+  
+};
+
 const MODULOS = [
   {
     id: 'notificaciones',
@@ -10,6 +17,7 @@ const MODULOS = [
     titulo: 'Notificar Inasistencia',
     desc: 'Registrar aviso de no disponibilidad',
     ruta: '/notificaciones',
+    rolesPermitidos: [ROLES.TRABAJADOR],
   },
   {
     id: 'malla',
@@ -17,6 +25,7 @@ const MODULOS = [
     titulo: 'Malla de Turnos',
     desc: 'Ver y generar la cuadrilla del día',
     ruta: '/malla',
+    rolesPermitidos: [ROLES.PLANIFICADOR],
   },
   {
     id: 'usuarios',
@@ -24,6 +33,7 @@ const MODULOS = [
     titulo: 'Gestión de Usuarios',
     desc: 'Altas, bajas y roles del personal',
     ruta: '/usuarios',
+    rolesPermitidos: [ROLES.ADMINISTRADOR, ROLES.PLANIFICADOR], 
   },
   {
     id: 'reportes',
@@ -31,14 +41,17 @@ const MODULOS = [
     titulo: 'Reportes y Exportación',
     desc: 'Ausentismo y mallas históricas',
     ruta: '/reportes',
+    rolesPermitidos: [ROLES.ADMINISTRADOR, ROLES.PLANIFICADOR],
+  },
+  {
+    id: 'horario',
+    icon: 'bi-calendar3',
+    titulo: 'Mi Horario',
+    desc: 'Ver tus turnos y horarios asignados',
+    ruta: '/horario',
+    rolesPermitidos: [ROLES.TRABAJADOR],
   },
 ];
-
-const obtenerRol = (u) => {
-  if (!u) return '';
-  if (typeof u.rol === 'string') return u.rol;
-  return u.rol?.nombre_rol || u.rol_nombre || u.nombre_rol || '';
-};
 
 const Home = () => {
   const [usuario, setUsuario] = useState(null);
@@ -62,14 +75,15 @@ const Home = () => {
     navigate(modulo.ruta);
   };
 
-  const rol = obtenerRol(usuario);
-
+  const modulosDisponibles = usuario?.rol 
+    ? MODULOS.filter(m => m.rolesPermitidos.includes(usuario.rol)) 
+    : [];
   return (
     <div className="up-shell">
       <div className="up-topbar">
         <div className="up-brand">
           <img src="/logo/logo-ultraport-color.svg" alt="Ultraport" className="up-logo" />
-          <span className="sub">Panel de Turnos{rol ? `: ${rol}` : ''}</span>
+          <span className="sub">Panel de Turnos{usuario?.rol ? `: ${usuario.rol}` : ''}</span>
         </div>
 
         <div className="up-user">
@@ -92,7 +106,7 @@ const Home = () => {
       </div>
 
       <div className="up-grid">
-        {MODULOS.map((m) => (
+        {modulosDisponibles.map((m) => (
           <div
             key={m.id}
             className="up-card"
@@ -109,6 +123,12 @@ const Home = () => {
           </div>
         ))}
       </div>
+      {modulosDisponibles.length === 0 && usuario && (
+        <div className="text-center mt-5 text-muted">
+          <i className="bi bi-shield-lock" style={{fontSize: '2rem'}}></i>
+          <p className="mt-3">Tu rol actual no tiene módulos asignados.</p>
+        </div>
+      )}
     </div>
   );
 };

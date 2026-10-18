@@ -1,6 +1,9 @@
 from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin 
-
+from .validar_rut import validar_rut_modulo_11, normalizar_rut
+from django.core.validators import RegexValidator
+from django.db.models.signals import post_migrate
+from django.dispatch import receiver
 
 class Rol(models.Model):
 
@@ -10,6 +13,29 @@ class Rol(models.Model):
 
     def __str__(self):
         return self.nombre_rol
+# --- CREACIÓN AUTOMÁTICA DE ROLES AL MIGRAR ---
+@receiver(post_migrate)
+def poblar_roles_iniciales(sender, **kwargs):
+    if sender.name == 'usuarios':
+        Rol = sender.get_model('Rol')
+        roles_iniciales = [
+            {
+                "nombre_rol": "Administrador",
+                "descripcion": "Responsable de gestion de inasistencia, ver malla de turnos, gestion de usuarios y contratos."
+            },
+            {
+                "nombre_rol": "Encargado de asignaciones",
+                "descripcion": "Responsable de gestion de inasistencia, imprimir reportes, malla de turnos, gestion de usuarios y contratos"
+            },
+            {
+                "nombre_rol": "Trabajador",
+                "descripcion": "Usuario con acceso a la malla de turnos, formulario de inasistencias, imprimir horario"
+            },
+        ]
+        for rol in roles_iniciales:
+            Rol.objects.get_or_create(
+                nombre_rol=rol["nombre_rol"], defaults={"descripcion": rol["descripcion"]})
+            
 class Contrato(models.Model):
 
     id_contrato = models.AutoField(primary_key=True) 
@@ -21,6 +47,10 @@ class Contrato(models.Model):
     max_noches_consecutivas = models.IntegerField()
     fecha_inicio = models.DateField()
     fecha_termino = models.DateField(null=True, blank=True) 
+    fecha_creacion = models.DateTimeField(auto_now_add=True)
+    fecha_actualizacion = models.DateTimeField(auto_now=True)
+    def __str__(self):
+        return self.tipo
 
 class UsuarioManager(BaseUserManager):
     def create_user(self, correo, rut, nombres, apellidos, password=None, **extra_fields):
@@ -51,12 +81,14 @@ class UsuarioManager(BaseUserManager):
 
 class Usuario(AbstractBaseUser, PermissionsMixin):  
     id_usuario = models.AutoField(primary_key=True) 
-    rut = models.CharField(max_length=12, unique=True)
+    rut = models.CharField(max_length=12, unique=True, validators=[validar_rut_modulo_11],verbose_name="Rut")
     nombres = models.CharField(max_length=100) 
     apellidos = models.CharField(max_length=100) 
     correo = models.EmailField(max_length=150, unique=True) 
-    id_rol = models.ForeignKey(Rol, on_delete=models.SET_NULL, null=True) 
-    id_contrato = models.ForeignKey(Contrato, on_delete=models.SET_NULL, null=True, blank=True) 
+    regex_celular_chile = RegexValidator(regex=r'^9\d{8}$', message="El número de celular debe tener 9 dígitos y comenzar con 9 (ej: 947492086).")
+    telefono = models.CharField( max_length=9, unique=True, null=True, blank=True,validators= [regex_celular_chile])
+    id_rol = models.ForeignKey(Rol, on_delete=models.SET_NULL, null=True, db_column='id_rol')  
+    id_contrato = models.ForeignKey(Contrato, on_delete=models.SET_NULL, null=True, blank=True,db_column='id_contrato') 
     estado = models.CharField(max_length=20, default='activo') 
     fecha_creacion = models.DateTimeField(auto_now_add=True)
 

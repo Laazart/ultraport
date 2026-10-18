@@ -1,14 +1,15 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework import status
+from rest_framework import status, viewsets
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
-from .serializers import CustomTokenObtainPairSerializer, RestablecerPasswordSerializer, SolicitarRecuperacionSerializer
+from .serializers import CustomTokenObtainPairSerializer, RestablecerPasswordSerializer, SolicitarRecuperacionSerializer, UsuarioSerializer, RolSerializer, ContratoSerializer
 from rest_framework.permissions import AllowAny
 from .services import crear_token_recuperacion, enviar_correo_recuperacion, validar_token
-from .models import Usuario
-
+from .permissions import Permisos, TienePermiso
+from .models import Usuario, Rol, Contrato
+from django.utils import timezone
 MENSAJE_GENERICO = 'Si el correo existe, recibirás un enlace para restablecer tu contraseña. ;)'
 
 class CustomLoginView(TokenObtainPairView):
@@ -63,3 +64,34 @@ class RestablecerPasswordView(APIView):
         registro.save(update_fields=['usado'])
 
         return Response({'mensaje': 'Contraseña actualizada.'}, status=status.HTTP_200_OK)
+
+class UsuarioViewSet(viewsets.ModelViewSet):
+    serializer_class = UsuarioSerializer
+    permission_classes = [IsAuthenticated, TienePermiso]
+    permiso_requerido = Permisos.USUARIOS_GESTIONAR
+
+    def get_queryset(self):
+        return (
+            Usuario.objects
+            .select_related('id_rol', 'id_contrato')
+            .order_by('apellidos', 'nombres')
+        )
+
+    def destroy(self, request, *args, **kwargs):
+        usuario = self.get_object()
+        usuario.estado = 'inactivo'
+        usuario.save(update_fields=['estado'])
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+class RolViewSet(viewsets.ModelViewSet ):
+    """Expone el catálogo fijo que el planificador usa al crear usuarios."""
+    queryset = Rol.objects.all()
+    serializer_class = RolSerializer
+    permission_classes = [IsAuthenticated, TienePermiso]
+    permiso_requerido = Permisos.USUARIOS_GESTIONAR
+
+class ContratoViewSet(viewsets.ModelViewSet):
+    queryset = Contrato.objects.all()
+    serializer_class = ContratoSerializer
+    permission_classes = [IsAuthenticated, TienePermiso]
+    permiso_requerido = Permisos.USUARIOS_GESTIONAR
