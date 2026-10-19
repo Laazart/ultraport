@@ -14,7 +14,6 @@ class NotificacionInasistenciaSerializer(serializers.ModelSerializer):
             'id_notificacion', 'id_usuario', 'usuario', 'id_turno', 'motivo',
             'fecha_inicio', 'fecha_fin', 'url_adjunto', 'estado', 'fecha_registro',
         ]
-        #estado solo lo cambia el encargado
         read_only_fields = ['id_notificacion', 'id_usuario', 'estado', 'fecha_registro']
 
     def get_usuario(self, obj):

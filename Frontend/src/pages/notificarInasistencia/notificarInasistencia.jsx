@@ -6,7 +6,6 @@ import '../home/Home.css';
 import './notificarInasistencia.css';
 
 const RUTA_HOME = '/home';
-// mismos ids que Roles en backend/ultraport/usuarios/permissions.py
 const ROLES = { ADMINISTRADOR: 1, PLANIFICADOR: 2, TRABAJADOR: 3 };
 const ROLES_GESTION = [ROLES.ADMINISTRADOR, ROLES.PLANIFICADOR];
 
@@ -29,7 +28,6 @@ const rangoFechas = (n) =>
     ? `${formatearFecha(n.fecha_inicio)} al ${formatearFecha(n.fecha_fin)}`
     : formatearFecha(n.fecha_inicio);
 
-// Convierte los errores de DRF ({campo: [msg]}) en un solo texto.
 const mensajeError = (err, porDefecto) => {
   const data = err.response?.data;
   if (!data) return porDefecto;
@@ -52,7 +50,6 @@ const LinkAdjunto = ({ url }) =>
     <span className="ina-muted">—</span>
   );
 
-/* ---------- Vista del trabajador: formulario + mis avisos ---------- */
 const VistaTrabajador = () => {
   const [form, setForm] = useState(FORM_INICIAL);
   const [inputKey, setInputKey] = useState(0);
@@ -63,7 +60,7 @@ const VistaTrabajador = () => {
 
   const cargar = useCallback(async () => {
     try {
-      setAvisos(await inasistenciasService.listar());
+      setAvisos(await inasistenciasService.listarMios());
     } catch (err) {
       setError(mensajeError(err, 'No se pudieron cargar tus avisos.'));
     }
@@ -97,7 +94,7 @@ const VistaTrabajador = () => {
       await inasistenciasService.crear(form);
       setMensaje('Aviso enviado. Quedó en estado pendiente de revisión.');
       setForm(FORM_INICIAL);
-      setInputKey((k) => k + 1); // limpia el input de archivo
+      setInputKey((k) => k + 1);
       cargar();
     } catch (err) {
       setError(mensajeError(err, 'No se pudo enviar el aviso.'));
@@ -200,7 +197,6 @@ const VistaTrabajador = () => {
   );
 };
 
-/* ---------- Vista del encargado: gestión de tickets ---------- */
 const VistaEncargado = () => {
   const [filtro, setFiltro] = useState('pendiente');
   const [avisos, setAvisos] = useState([]);
@@ -233,7 +229,6 @@ const VistaEncargado = () => {
       setAvisos((lista) =>
         lista
           .map((a) => (a.id_notificacion === actualizado.id_notificacion ? actualizado : a))
-          // si hay filtro activo y el aviso ya no calza, se quita de la lista
           .filter((a) => !filtro || a.estado === filtro),
       );
     } catch (err) {

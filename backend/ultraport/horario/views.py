@@ -8,33 +8,38 @@ from django.shortcuts import get_object_or_404
 from usuarios.permissions import Permisos, TienePermiso
 
 from .models import NotificacionInasistencia
-from .permissions import PuedeNotificarOConsultar, es_encargado
 from .serializers import CambiarEstadoSerializer, NotificacionInasistenciaSerializer
 
 
-class NotificacionListCreateView(generics.ListCreateAPIView):
-    """el trabajador ve sus propios avisos
-    el encargado ve todos los avisos (filtro opcional ?estado=).
-    el trabajador registra un aviso, de forma predeterminada viene como pendiente"""
+class MisAvisosView(generics.ListCreateAPIView):
     serializer_class = NotificacionInasistenciaSerializer
-    permission_classes = [IsAuthenticated, PuedeNotificarOConsultar]
+    permission_classes = [IsAuthenticated, TienePermiso]
+    permiso_requerido = Permisos.NOTIFICAR_INASISTENCIA
     parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def get_queryset(self):
-        qs = NotificacionInasistencia.objects.select_related('id_usuario')
-        if not es_encargado(self.request.user):
-            qs = qs.filter(id_usuario=self.request.user)
-        estado = self.request.query_params.get('estado')
-        if estado:
-            qs = qs.filter(estado=estado)
-        return qs
+        return NotificacionInasistencia.objects.select_related('id_usuario').filter(
+            id_usuario=self.request.user
+        )
 
     def perform_create(self, serializer):
         serializer.save(id_usuario=self.request.user)
 
 
+class AvisosListView(generics.ListAPIView):
+    serializer_class = NotificacionInasistenciaSerializer
+    permission_classes = [IsAuthenticated, TienePermiso]
+    permiso_requerido = Permisos.GESTIONAR_INASISTENCIA
+
+    def get_queryset(self):
+        qs = NotificacionInasistencia.objects.select_related('id_usuario')
+        estado = self.request.query_params.get('estado')
+        if estado:
+            qs = qs.filter(estado=estado)
+        return qs
+
+
 class CambiarEstadoView(APIView):
-    """encargado puede aprobar, rechazar o devolver a pendiente un aviso"""
     permission_classes = [IsAuthenticated, TienePermiso]
     permiso_requerido = Permisos.GESTIONAR_INASISTENCIA
 
