@@ -19,7 +19,10 @@ class NotificacionInasistenciaSerializer(serializers.ModelSerializer):
 
     def get_usuario(self, obj):
         u = obj.id_usuario
-        return {'rut': u.rut, 'nombres': u.nombres, 'apellidos': u.apellidos}
+        return {
+            'rut': u.rut, 'nombres': u.nombres, 'apellidos': u.apellidos,
+            'correo': u.correo, 'telefono': u.telefono,
+        }
 
     def validate_motivo(self, value):
         if not value.strip():

@@ -5,8 +5,10 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
 
+from usuarios.permissions import Permisos, TienePermiso
+
 from .models import NotificacionInasistencia
-from .permissions import EsEncargado, es_encargado
+from .permissions import PuedeNotificarOConsultar, es_encargado
 from .serializers import CambiarEstadoSerializer, NotificacionInasistenciaSerializer
 
 
@@ -15,7 +17,7 @@ class NotificacionListCreateView(generics.ListCreateAPIView):
     el encargado ve todos los avisos (filtro opcional ?estado=).
     el trabajador registra un aviso, de forma predeterminada viene como pendiente"""
     serializer_class = NotificacionInasistenciaSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, PuedeNotificarOConsultar]
     parser_classes = [MultiPartParser, FormParser, JSONParser]
 
     def get_queryset(self):
@@ -33,7 +35,8 @@ class NotificacionListCreateView(generics.ListCreateAPIView):
 
 class CambiarEstadoView(APIView):
     """encargado puede aprobar, rechazar o devolver a pendiente un aviso"""
-    permission_classes = [IsAuthenticated, EsEncargado]
+    permission_classes = [IsAuthenticated, TienePermiso]
+    permiso_requerido = Permisos.GESTIONAR_INASISTENCIA
 
     def patch(self, request, pk):
         notificacion = get_object_or_404(NotificacionInasistencia, pk=pk)

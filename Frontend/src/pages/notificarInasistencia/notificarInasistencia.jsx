@@ -6,7 +6,9 @@ import '../home/Home.css';
 import './notificarInasistencia.css';
 
 const RUTA_HOME = '/home';
-const ROLES_GESTION = ['Encargado de Planificacion', 'Administrador'];
+// mismos ids que Roles en backend/ultraport/usuarios/permissions.py
+const ROLES = { ADMINISTRADOR: 1, PLANIFICADOR: 2, TRABAJADOR: 3 };
+const ROLES_GESTION = [ROLES.ADMINISTRADOR, ROLES.PLANIFICADOR];
 
 const ESTADOS = [
   { valor: 'pendiente', etiqueta: 'Pendiente' },
@@ -282,6 +284,11 @@ const VistaEncargado = () => {
                   <td>
                     <div>{a.usuario.nombres} {a.usuario.apellidos}</div>
                     <div className="ina-muted">{a.usuario.rut}</div>
+                    {a.usuario.telefono && (
+                      <div className="ina-muted">
+                        <i className="bi bi-telephone"></i> {a.usuario.telefono}
+                      </div>
+                    )}
                   </td>
                   <td className="ina-nowrap">{rangoFechas(a)}</td>
                   <td className="ina-motivo">{a.motivo}</td>
@@ -351,7 +358,7 @@ const NotificarInasistencia = () => {
     navigate(RUTA_HOME);
   };
 
-  const esEncargado = ROLES_GESTION.includes(usuario?.rol);
+  const esEncargado = ROLES_GESTION.includes(usuario?.id_rol);
 
   return (
     <div className="up-shell">

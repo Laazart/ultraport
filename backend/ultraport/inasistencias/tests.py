@@ -3,6 +3,7 @@ from django.test import override_settings
 from rest_framework.test import APITestCase
 
 from usuarios.models import Rol, Usuario
+from usuarios.permissions import Roles
 from .models import NotificacionInasistencia
 
 URL = '/api/inasistencias/'
@@ -10,10 +11,12 @@ URL = '/api/inasistencias/'
 @override_settings(MEDIA_ROOT='test_media')
 class NotificacionInasistenciaTests(APITestCase):
     def setUp(self):
-        rol_trabajador = Rol.objects.create(nombre_rol='Trabajador')
-        rol_encargado = Rol.objects.create(nombre_rol='Encargado de Planificacion')
+        # los roles los crea la señal post_migrate de usuarios con los ids de Roles
+        rol_trabajador = Rol.objects.get(pk=Roles.TRABAJADOR)
+        rol_encargado = Rol.objects.get(pk=Roles.PLANIFICADOR)
         self.trabajador = Usuario.objects.create_user(
-            'trabajador@test.cl', '11111111-1', 'Juan', 'Pérez', 'clave-segura-123', id_rol=rol_trabajador)
+            'trabajador@test.cl', '11111111-1', 'Juan', 'Pérez', 'clave-segura-123',
+            id_rol=rol_trabajador, telefono='912345678')
         self.otro = Usuario.objects.create_user(
             'otro@test.cl', '22222222-2', 'Ana', 'Soto', 'clave-segura-123', id_rol=rol_trabajador)
         self.encargado = Usuario.objects.create_user(
@@ -80,7 +83,15 @@ class NotificacionInasistenciaTests(APITestCase):
         self._crear(self.otro, estado='aprobado')
         self.client.force_authenticate(self.encargado)
         self.assertEqual(len(self.client.get(URL).data), 2)
-        self.assertEqual(len(self.client.get(URL, {'estado': 'aprobado'}).data), 1)
+        aprobados = self.client.get(URL, {'estado': 'aprobado'}).data
+        self.assertEqual(len(aprobados), 1)
+        pendiente = self.client.get(URL, {'estado': 'pendiente'}).data[0]
+        self.assertEqual(pendiente['usuario']['telefono'], '912345678')
+
+    def test_encargado_no_registra_avisos(self):
+        self.client.force_authenticate(self.encargado)
+        resp = self.client.post(URL, {'motivo': 'x', 'fecha_inicio': '2026-10-20'}, format='json')
+        self.assertEqual(resp.status_code, 403)
 
     def test_encargado_cambia_estado_y_puede_revertirlo(self):
         aviso = self._crear(self.trabajador)

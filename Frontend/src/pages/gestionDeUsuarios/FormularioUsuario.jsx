@@ -235,10 +235,10 @@ const FormularioUsuario = () => {
                       onChange={handleChange}
                       required
                     >
-                      {/*5 Administrador | 7 Encargado de Asignaciones | 6 Trabajador */}
+                      {/*5 Administrador | 7 Encargado de Planificacion | 6 Trabajador */}
                       <option value="">Selecciona un rol...</option>
                       <option value="1">Administrador</option>
-                      <option value="2">Encargado de asignaciones</option>
+                      <option value="2">Encargado de Planificacion</option>
                       <option value="3">Trabajador</option>
                     </select>
                 </div>

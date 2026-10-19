@@ -24,7 +24,7 @@ def poblar_roles_iniciales(sender, **kwargs):
                 "descripcion": "Responsable de gestion de inasistencia, ver malla de turnos, gestion de usuarios y contratos."
             },
             {
-                "nombre_rol": "Encargado de asignaciones",
+                "nombre_rol": "Encargado de Planificacion",
                 "descripcion": "Responsable de gestion de inasistencia, imprimir reportes, malla de turnos, gestion de usuarios y contratos"
             },
             {
