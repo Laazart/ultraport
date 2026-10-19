@@ -4,6 +4,7 @@ from .validar_rut import validar_rut_modulo_11, normalizar_rut
 from django.core.validators import RegexValidator
 from django.db.models.signals import post_migrate
 from django.dispatch import receiver
+from django.utils import timezone
 
 class Rol(models.Model):
 
@@ -47,7 +48,7 @@ class Contrato(models.Model):
     max_noches_consecutivas = models.IntegerField()
     fecha_inicio = models.DateField()
     fecha_termino = models.DateField(null=True, blank=True) 
-    fecha_creacion = models.DateTimeField(auto_now_add=True)
+    fecha_creacion = models.DateTimeField(default=timezone.now)
     fecha_actualizacion = models.DateTimeField(auto_now=True)
     def __str__(self):
         return self.tipo
@@ -90,7 +91,7 @@ class Usuario(AbstractBaseUser, PermissionsMixin):
     id_rol = models.ForeignKey(Rol, on_delete=models.SET_NULL, null=True, db_column='id_rol')  
     id_contrato = models.ForeignKey(Contrato, on_delete=models.SET_NULL, null=True, blank=True,db_column='id_contrato') 
     estado = models.CharField(max_length=20, default='activo') 
-    fecha_creacion = models.DateTimeField(auto_now_add=True)
+    fecha_creacion = models.DateTimeField(default=timezone.now,editable=False)
 
     is_staff = models.BooleanField(default=False)  
     is_active = models.BooleanField(default=True)    
