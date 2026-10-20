@@ -39,7 +39,7 @@ const VerUsuario = () => {
   const obtenerNombreRol = (idRol) => {
     if (idRol === 1) return 'Administrador';
     if (idRol === 2) return 'Trabajador';
-    if (idRol === 3) return 'Encargado de Asignaciones';
+    if (idRol === 3) return 'Encargado de Planificacion';
     return 'Rol no asignado';
   };
   

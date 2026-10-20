@@ -5,7 +5,7 @@ import './Home.css';
 
 const ROLES = {
   ADMINISTRADOR: 'Administrador',
-  PLANIFICADOR: 'Encargado de Asignaciones',
+  PLANIFICADOR: 'Encargado de Planificacion',
   TRABAJADOR: 'Trabajador',
   
 };
@@ -18,6 +18,14 @@ const MODULOS = [
     desc: 'Registrar aviso de no disponibilidad',
     ruta: '/notificaciones',
     rolesPermitidos: [ROLES.TRABAJADOR],
+  },
+  {
+    id: 'gestion-inasistencias',
+    icon: 'bi-clipboard-check',
+    titulo: 'Gestión de Inasistencias',
+    desc: 'Aprobar o rechazar avisos',
+    ruta: '/notificaciones',
+    rolesPermitidos: [ROLES.ADMINISTRADOR, ROLES.PLANIFICADOR],
   },
   {
     id: 'malla',
