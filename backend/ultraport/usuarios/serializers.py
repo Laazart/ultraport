@@ -1,5 +1,5 @@
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer 
-from .models import Usuario, Rol , Contrato
+from .models import Usuario, Rol , Contrato, Puesto, UsuarioPuesto, TipoLicencia, UsuarioLicencia, Maquinaria, UsuarioMaquinaria
 from rest_framework import serializers
 from django.contrib.auth.password_validation import validate_password
 from django.core.validators import RegexValidator 
@@ -100,3 +100,43 @@ class ContratoSerializer(serializers.ModelSerializer):
         model = Contrato
         fields = ['id_contrato','tipo','modalidad','turno_habitual','horas_semanales_pactadas','permite_horas_extra','max_noches_consecutivas', 'fecha_inicio','fecha_termino',"fecha_creacion","fecha_actualizacion"]
         read_only_fields = ['id_contrato', 'fecha_creacion', 'fecha_actualizacion']
+
+
+
+
+class PuestoSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Puesto
+        fields = ['id_puesto', 'nombre_puesto', 'descripcion']
+
+
+class TipoLicenciaSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TipoLicencia
+        fields = ['id_tipo_licencia', 'nombre_licencia', 'descripcion', 'vigencia_dias']
+
+
+class MaquinariaSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Maquinaria
+        fields = ['id_maquinaria', 'nombre_maquinaria', 'especialidad',
+                  'id_puesto_asociado', 'id_tipo_licencia_requerida']
+
+
+class UsuarioPuestoSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UsuarioPuesto
+        fields = ['id_usuario_puesto', 'id_usuario', 'id_puesto', 'fecha_asignacion']
+
+
+class UsuarioLicenciaSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UsuarioLicencia
+        fields = ['id_usuario_licencia', 'id_usuario', 'id_tipo_licencia',
+                  'especialidades', 'fecha_emision', 'fecha_vencimiento', 'url_adjunto']
+
+
+class UsuarioMaquinariaSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UsuarioMaquinaria
+        fields = ['id_usuario_maquinaria', 'id_usuario', 'id_maquinaria', 'fecha_vencimiento']

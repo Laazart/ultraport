@@ -14,7 +14,6 @@ class Rol(models.Model):
 
     def __str__(self):
         return self.nombre_rol
-# --- CREACIÓN AUTOMÁTICA DE ROLES AL MIGRAR ---
 @receiver(post_migrate)
 def poblar_roles_iniciales(sender, **kwargs):
     if sender.name == 'usuarios':
@@ -38,21 +37,27 @@ def poblar_roles_iniciales(sender, **kwargs):
                 nombre_rol=rol["nombre_rol"], defaults={"descripcion": rol["descripcion"]})
             
 class Contrato(models.Model):
+    TIPOS = [
+        ('bono_turno', 'Bono turno'),
+        ('cppt', 'CPPT'),
+        ('eventual', 'Eventual'),
+    ]
 
-    id_contrato = models.AutoField(primary_key=True) 
-    tipo = models.CharField(max_length=30)
+    id_contrato = models.AutoField(primary_key=True)
+    tipo = models.CharField(max_length=30, choices=TIPOS)
     modalidad = models.CharField(max_length=20, null=True, blank=True)
-    turno_habitual = models.CharField(max_length=20) 
-    horas_semanales_pactadas = models.IntegerField() 
-    permite_horas_extra = models.BooleanField(default=False) 
-    max_noches_consecutivas = models.IntegerField()
+    turno_habitual = models.CharField(max_length=20)
+    horas_semanales_pactadas = models.IntegerField()
+    permite_horas_extra = models.BooleanField(default=False)
+    max_noches_consecutivas = models.PositiveSmallIntegerField(null=True, blank=True)
+    max_noches_semana = models.PositiveSmallIntegerField(null=True, blank=True)
     fecha_inicio = models.DateField()
-    fecha_termino = models.DateField(null=True, blank=True) 
+    fecha_termino = models.DateField(null=True, blank=True)
     fecha_creacion = models.DateTimeField(default=timezone.now)
     fecha_actualizacion = models.DateTimeField(auto_now=True)
-    def __str__(self):
-        return self.tipo
 
+    def __str__(self):
+        return self.get_tipo_display()
 class UsuarioManager(BaseUserManager):
     def create_user(self, correo, rut, nombres, apellidos, password=None, **extra_fields):
         if not correo:
@@ -116,3 +121,87 @@ class TokenRecuperacion(models.Model):
 
     class Meta:
         db_table = 'token_recuperacion'
+
+
+
+
+
+class Puesto(models.Model):
+    id_puesto = models.AutoField(primary_key=True)
+    nombre_puesto = models.CharField(max_length=50, unique=True)
+    descripcion = models.CharField(max_length=255, null=True, blank=True)
+
+    def __str__(self):
+        return self.nombre_puesto
+
+
+class UsuarioPuesto(models.Model):
+    id_usuario_puesto = models.AutoField(primary_key=True)
+    id_usuario = models.ForeignKey(Usuario, on_delete=models.CASCADE, related_name='puestos')
+    id_puesto = models.ForeignKey(Puesto, on_delete=models.PROTECT, related_name='usuarios')
+    fecha_asignacion = models.DateField(default=timezone.now)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['id_usuario', 'id_puesto'], name='uniq_usuario_puesto'),
+        ]
+
+
+class TipoLicencia(models.Model):
+    id_tipo_licencia = models.AutoField(primary_key=True)
+    nombre_licencia = models.CharField(max_length=50, unique=True)
+    descripcion = models.CharField(max_length=255)
+    vigencia_dias = models.PositiveSmallIntegerField(default=730)
+
+    def __str__(self):
+        return self.nombre_licencia
+
+
+class UsuarioLicencia(models.Model):
+    id_usuario_licencia = models.AutoField(primary_key=True)
+    id_usuario = models.ForeignKey(Usuario, on_delete=models.CASCADE, related_name='licencias')
+    id_tipo_licencia = models.ForeignKey(TipoLicencia, on_delete=models.PROTECT, related_name='usuarios')
+    especialidades = models.CharField(max_length=255)
+    fecha_emision = models.DateField()
+    fecha_vencimiento = models.DateField()
+    url_adjunto = models.CharField(max_length=255, null=True, blank=True)
+    fecha_creacion = models.DateTimeField(auto_now_add=True)
+    fecha_actualizacion = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['id_usuario', 'id_tipo_licencia'], name='uniq_usuario_licencia'),
+        ]
+    def __str__(self):
+            # Esto mostrará: "Juan Perez - Licencia D"
+            return f"{self.id_usuario.nombres} {self.id_usuario.apellidos} - Licencia {self.id_tipo_licencia.nombre_licencia}"
+
+class Maquinaria(models.Model):
+    id_maquinaria = models.AutoField(primary_key=True)
+    nombre_maquinaria = models.CharField(max_length=50, unique=True)
+    especialidad = models.CharField(max_length=50)
+    id_puesto_asociado = models.ForeignKey(
+        Puesto, on_delete=models.SET_NULL, null=True, blank=True, related_name='maquinarias'
+    )
+    id_tipo_licencia_requerida = models.ForeignKey(
+        TipoLicencia, on_delete=models.SET_NULL, null=True, blank=True, related_name='maquinarias'
+    )
+
+    def __str__(self):
+        return self.nombre_maquinaria
+
+
+class UsuarioMaquinaria(models.Model):
+    id_usuario_maquinaria = models.AutoField(primary_key=True)
+    id_usuario = models.ForeignKey(Usuario, on_delete=models.CASCADE, related_name='maquinarias')
+    id_maquinaria = models.ForeignKey(Maquinaria, on_delete=models.PROTECT, related_name='operadores')
+    fecha_vencimiento = models.DateField(null=True, blank=True)
+    fecha_creacion = models.DateTimeField(auto_now_add=True)
+    fecha_actualizacion = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(fields=['id_usuario', 'id_maquinaria'], name='uniq_usuario_maquinaria'),
+        ]
+    def __str__(self):
+            return f"{self.id_usuario.nombres} {self.id_usuario.apellidos} - {self.id_maquinaria.nombre_maquinaria}"
