@@ -8,8 +8,13 @@ from .serializers import CustomTokenObtainPairSerializer, RestablecerPasswordSer
 from rest_framework.permissions import AllowAny
 from .services import crear_token_recuperacion, enviar_correo_recuperacion, validar_token
 from .permissions import Permisos, TienePermiso
-from .models import Usuario, Rol, Contrato
+from .models import Usuario, Rol, Contrato, Puesto, TipoLicencia, Maquinaria, UsuarioPuesto, UsuarioLicencia, UsuarioMaquinaria
 from django.utils import timezone
+from .serializers import (
+    PuestoSerializer, TipoLicenciaSerializer, MaquinariaSerializer,
+    UsuarioPuestoSerializer, UsuarioLicenciaSerializer, UsuarioMaquinariaSerializer,
+)
+
 MENSAJE_GENERICO = 'Si el correo existe, recibirás un enlace para restablecer tu contraseña. ;)'
 
 class CustomLoginView(TokenObtainPairView):
@@ -93,5 +98,49 @@ class RolViewSet(viewsets.ModelViewSet ):
 class ContratoViewSet(viewsets.ModelViewSet):
     queryset = Contrato.objects.all()
     serializer_class = ContratoSerializer
+    permission_classes = [IsAuthenticated, TienePermiso]
+    permiso_requerido = Permisos.USUARIOS_GESTIONAR
+
+
+
+
+class PuestoViewSet(viewsets.ModelViewSet):
+    queryset = Puesto.objects.all()
+    serializer_class = PuestoSerializer
+    permission_classes = [IsAuthenticated, TienePermiso]
+    permiso_requerido = Permisos.USUARIOS_GESTIONAR
+
+
+class TipoLicenciaViewSet(viewsets.ModelViewSet):
+    queryset = TipoLicencia.objects.all()
+    serializer_class = TipoLicenciaSerializer
+    permission_classes = [IsAuthenticated, TienePermiso]
+    permiso_requerido = Permisos.USUARIOS_GESTIONAR
+
+
+class MaquinariaViewSet(viewsets.ModelViewSet):
+    queryset = Maquinaria.objects.all()
+    serializer_class = MaquinariaSerializer
+    permission_classes = [IsAuthenticated, TienePermiso]
+    permiso_requerido = Permisos.USUARIOS_GESTIONAR
+
+
+class UsuarioPuestoViewSet(viewsets.ModelViewSet):
+    queryset = UsuarioPuesto.objects.all()
+    serializer_class = UsuarioPuestoSerializer
+    permission_classes = [IsAuthenticated, TienePermiso]
+    permiso_requerido = Permisos.USUARIOS_GESTIONAR
+
+
+class UsuarioLicenciaViewSet(viewsets.ModelViewSet):
+    queryset = UsuarioLicencia.objects.all()
+    serializer_class = UsuarioLicenciaSerializer
+    permission_classes = [IsAuthenticated, TienePermiso]
+    permiso_requerido = Permisos.USUARIOS_GESTIONAR
+
+
+class UsuarioMaquinariaViewSet(viewsets.ModelViewSet):
+    queryset = UsuarioMaquinaria.objects.all()
+    serializer_class = UsuarioMaquinariaSerializer
     permission_classes = [IsAuthenticated, TienePermiso]
     permiso_requerido = Permisos.USUARIOS_GESTIONAR

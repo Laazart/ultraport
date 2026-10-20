@@ -8,6 +8,8 @@ class Permisos:
     USUARIOS_GESTIONAR = 'usuarios.gestionar'
     NOTIFICAR_INASISTENCIA = 'notificar.inasistencia'
     GESTIONAR_INASISTENCIA = 'gestionar.inasistencia'
+    PLANIFICAR_TURNOS = 'horario.planificar'
+
 
 PERMISOS_POR_ROL = {
     Roles.ADMINISTRADOR: {
@@ -17,6 +19,8 @@ PERMISOS_POR_ROL = {
     Roles.PLANIFICADOR: {
         Permisos.USUARIOS_GESTIONAR,
         Permisos.GESTIONAR_INASISTENCIA,
+        Permisos.PLANIFICAR_TURNOS,
+
     },
     Roles.TRABAJADOR: {
         Permisos.NOTIFICAR_INASISTENCIA,

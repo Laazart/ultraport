@@ -1,0 +1,161 @@
+/* Estilos propios de la gestión de malla. Reutiliza variables de Home.css */
+
+.gm-section {
+  max-width: 1040px;
+  margin: 0 auto 32px;
+  background: #101C2C;
+  border: 1px solid #1E3349;
+  border-radius: 10px;
+  padding: 22px 24px;
+}
+
+.gm-section h2 {
+  font-size: 16px;
+  font-weight: 600;
+  color: #F4F7FB;
+  margin: 0 0 16px;
+}
+
+.gm-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.gm-input {
+  background: #0A1420;
+  border: 1px solid #1E3349;
+  color: #E9EEF5;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 13px;
+  color-scheme: dark;
+}
+
+.gm-input:focus {
+  outline: none;
+  border-color: #F2A63D;
+}
+
+.gm-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  border: 1px solid #1E3349;
+  color: #C7D1DE;
+  padding: 8px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color .15s ease, color .15s ease, background .15s ease;
+}
+
+.gm-btn:hover:not(:disabled) {
+  border-color: #F2A63D;
+  color: #F2A63D;
+  background: rgba(242, 166, 61, 0.08);
+}
+
+.gm-btn-primary {
+  background: #F2A63D;
+  border-color: #F2A63D;
+  color: #0A1420;
+  font-weight: 600;
+}
+
+.gm-btn-primary:hover:not(:disabled) {
+  background: #F7B65A;
+  color: #0A1420;
+}
+
+.gm-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.gm-btn-danger:hover:not(:disabled) {
+  border-color: #E2574C;
+  color: #F2867D;
+  background: rgba(226, 87, 76, 0.08);
+}
+
+.gm-lista-mallas {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.gm-error {
+  max-width: 1040px;
+  margin: 0 auto 24px;
+  background: rgba(226, 87, 76, 0.1);
+  border: 1px solid #E2574C;
+  color: #F2867D;
+  border-radius: 8px;
+  padding: 12px 16px;
+  font-size: 13px;
+}
+
+.gm-turno {
+  border: 1px solid #1E3349;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 14px;
+  background: #0A1420;
+}
+
+.gm-turno-titulo {
+  font-size: 14px;
+  font-weight: 600;
+  color: #E9EEF5;
+  margin: 0 0 10px;
+}
+
+.gm-turno-titulo .badge-cupos {
+  font-size: 11px;
+  color: #A9B6C6;
+  background: rgba(126, 144, 168, 0.12);
+  border: 1px solid #2B3D53;
+  padding: 2px 8px;
+  border-radius: 999px;
+  margin-left: 8px;
+}
+
+.gm-tabla {
+  color: #E9EEF5;
+  font-size: 13px;
+  margin-bottom: 0;
+}
+
+.gm-tabla th {
+  color: #7E90A8;
+  font-weight: 500;
+  border-color: #1E3349 !important;
+}
+
+.gm-tabla td {
+  border-color: #1E3349 !important;
+  vertical-align: middle;
+}
+
+.gm-vacio {
+  color: #7E90A8;
+  font-size: 13px;
+  font-style: italic;
+}
+
+.gm-estado {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid #2B3D53;
+  color: #A9B6C6;
+}
+
+.gm-estado-confirmado { color: #6FCF97; border-color: #2F6B4A; }
+.gm-estado-borrador   { color: #F2A63D; border-color: #6B4A1F; }

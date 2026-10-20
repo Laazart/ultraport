@@ -13,6 +13,8 @@ import VerUsuario from './pages/gestionDeUsuarios/VerUsuario'
 import FormularioUsuario from './pages/gestionDeUsuarios/FormularioUsuario'
 import SolicitarRecuperacion from './pages/login/SolicitarRecuperacion';
 import RestablecerPassword from './pages/login/RestablecerPassword';
+import GestionMalla from './pages/mallaDeTurnos/gestionMalla';
+
 import 'bootstrap/dist/css/bootstrap.min.css'
 import 'bootstrap-icons/font/bootstrap-icons.css'
 import 'bootstrap/dist/js/bootstrap.bundle.min.js'
@@ -33,6 +35,7 @@ createRoot(document.getElementById('root')).render(
         <Route path="/usuarios/ver/:id" element={<VerUsuario />} />
         <Route path="/usuarios/nuevo" element={<FormularioUsuario />} />
         <Route path="/usuarios/editar/:id" element={<FormularioUsuario />} />
+        <Route path="/malla/gestion" element={<GestionMalla />} />
       </Routes>
     </BrowserRouter>
   </StrictMode>,
