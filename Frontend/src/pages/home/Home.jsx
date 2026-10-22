@@ -4,10 +4,9 @@ import authService from '../../services/auth';
 import './Home.css';
 
 const ROLES = {
-  ADMINISTRADOR: 'Administrador',
-  PLANIFICADOR: 'Encargado de Planificacion',
-  TRABAJADOR: 'Trabajador',
-  
+  ADMINISTRADOR: 1,
+  PLANIFICADOR: 2,
+  TRABAJADOR: 3,
 };
 
 const MODULOS = [
@@ -78,14 +77,15 @@ const Home = () => {
     await authService.logout();
     navigate('/login');
   };
-
   const handleModuloClick = (modulo) => {
     navigate(modulo.ruta);
   };
-
-  const modulosDisponibles = usuario?.rol 
-    ? MODULOS.filter(m => m.rolesPermitidos.includes(usuario.rol)) 
+  const modulosDisponibles = usuario?.id_rol != null
+    ? MODULOS.filter((modulo) =>
+        modulo.rolesPermitidos.includes(Number(usuario.id_rol))
+      )
     : [];
+
   return (
     <div className="up-shell">
       <div className="up-topbar">

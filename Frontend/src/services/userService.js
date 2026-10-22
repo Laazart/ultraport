@@ -56,5 +56,13 @@ const contratoService = {
   },
 };
 
-export { contratoService };
+const ROLES_URL = 'http://127.0.0.1:8000/api/roles/';
+const rolService = { 
+
+  getRoles: async () => {
+    const response = await axios.get(ROLES_URL , getAuthHeaders());
+    return response.data;
+  },
+};
+export { contratoService , rolService};
 export default userService;

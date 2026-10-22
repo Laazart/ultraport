@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import userService, { contratoService } from '../../services/userService';
+import userService, { contratoService , rolService } from '../../services/userService';
 import './GestionDeUsuarios.css'; 
 
 const VerUsuario = () => {
   const navigate = useNavigate();
   const { id } = useParams();
   const [contratos, setContratos] = useState([]);
+  const [roles, setRoles] = useState([]);
   const [usuarioData, setUsuarioData] = useState(null);
   const [error, setError] = useState(null);
 
@@ -20,11 +21,17 @@ const VerUsuario = () => {
       setCargando(true);
       const data = await userService.getUsuarioById(userId);
       setUsuarioData(data);
+
       const respuesta = await contratoService.getContratos();
       const lista = Array.isArray(respuesta) ? respuesta : respuesta.results ?? [];
       setContratos(lista);
+
+      const respuestaRoles = await rolService.getRoles();
+      const listaRoles = Array.isArray(respuestaRoles)
+        ? respuestaRoles
+        : respuestaRoles.results ?? [];
+      setRoles(listaRoles);
     } catch (error) {
-      console.error("Error al cargar el usuario:", error);
       setError("No se pudo cargar la información del usuario.");
     } finally {
       setCargando(false);
@@ -36,12 +43,12 @@ const VerUsuario = () => {
     String(contrato.id_contrato) === String(usuarioData.id_contrato)
   );
 
-  const obtenerNombreRol = (idRol) => {
-    if (idRol === 1) return 'Administrador';
-    if (idRol === 2) return 'Trabajador';
-    if (idRol === 3) return 'Encargado de Planificacion';
-    return 'Rol no asignado';
-  };
+const obtenerNombreRol = (idRol) => {
+  const rol = roles.find(
+    (rol) => Number(rol.id_rol) === Number(idRol)
+  );
+  return rol?.nombre_rol ?? 'Rol no asignado';
+};
   
   // Estilos centralizados para mejorar la visibilidad en modo oscuro
   const labelStyle = {
