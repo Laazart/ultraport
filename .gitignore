@@ -15,3 +15,4 @@ media/
 # Archivos de entorno y configuraciones locales
 .env
 .vscode/
+test_media/
