@@ -36,6 +36,14 @@ const MODULOS = [
     // repetia le funcion de horario
   },
   {
+    id: 'malla-gestion',
+    icon: 'bi-calendar-plus',
+    titulo: 'Gestión de Malla',
+    desc: 'Crear y organizar la cuadrilla para los turnos del día',
+    ruta: '/malla/gestion',
+    rolesPermitidos: [ROLES.PLANIFICADOR],
+  },
+  {
     id: 'usuarios',
     icon: 'bi-people',
     titulo: 'Gestión de Usuarios',
