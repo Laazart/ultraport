@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import userService, { contratoService , rolService } from '../../services/userService';
+import TextoRol from '../../components/TextoRol';
 import './GestionDeUsuarios.css'; 
 
 const VerUsuario = () => {
@@ -73,7 +74,7 @@ const obtenerNombreRol = (idRol) => {
       <div className="up-topbar">
         <div className="up-brand">
           <img src="/logo/logo-ultraport-color.svg" alt="Ultraport" className="up-logo" />
-          <span className="sub">Panel de Turnos</span>
+          <span className="sub">Panel de Turnos<TextoRol /></span>
         </div>
       </div>
       <div className="up-subbar">

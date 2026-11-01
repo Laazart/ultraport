@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import authService from '../../services/auth';
+import TextoRol from '../../components/TextoRol';
 import horarioService from '../../services/horario';
 import '../home/Home.css';
 import './gestionMalla.css';
@@ -93,7 +94,7 @@ const GestionMalla = () => {
       <div className="up-topbar">
         <div className="up-brand">
           <img src="/logo/logo-ultraport-color.svg" alt="Ultraport" className="up-logo" />
-          <span className="sub">Gestión de Turnos</span>
+          <span className="sub">Panel de Turnos<TextoRol /></span>
         </div>
         <div className="up-user">
           {usuario && (

@@ -14,6 +14,7 @@ import FormularioUsuario from './pages/gestionDeUsuarios/FormularioUsuario'
 import SolicitarRecuperacion from './pages/login/SolicitarRecuperacion';
 import RestablecerPassword from './pages/login/RestablecerPassword';
 import GestionMalla from './pages/mallaDeTurnos/gestionMalla';
+import VisualizacionHorario from './pages/visualizacionHorario/visualizacionHorario';
 
 import 'bootstrap/dist/css/bootstrap.min.css'
 import 'bootstrap-icons/font/bootstrap-icons.css'
@@ -36,6 +37,7 @@ createRoot(document.getElementById('root')).render(
         <Route path="/usuarios/nuevo" element={<FormularioUsuario />} />
         <Route path="/usuarios/editar/:id" element={<FormularioUsuario />} />
         <Route path="/malla/gestion" element={<GestionMalla />} />
+        <Route path="/horario" element={<VisualizacionHorario />} />
       </Routes>
     </BrowserRouter>
   </StrictMode>,

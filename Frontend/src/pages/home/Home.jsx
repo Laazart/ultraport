@@ -32,7 +32,8 @@ const MODULOS = [
     titulo: 'Malla de Turnos',
     desc: 'Ver y generar la cuadrilla del día',
     ruta: '/malla',
-    rolesPermitidos: [ROLES.PLANIFICADOR],
+    rolesPermitidos: [],
+    // repetia le funcion de horario
   },
   {
     id: 'malla-gestion',
@@ -61,10 +62,10 @@ const MODULOS = [
   {
     id: 'horario',
     icon: 'bi-calendar3',
-    titulo: 'Mi Horario',
-    desc: 'Ver tus turnos y horarios asignados',
+    titulo: 'Horario del Día',
+    desc: 'Asignaciones por turno y área',
     ruta: '/horario',
-    rolesPermitidos: [ROLES.TRABAJADOR],
+    rolesPermitidos: [ROLES.ADMINISTRADOR, ROLES.PLANIFICADOR, ROLES.TRABAJADOR],
   },
 ];
 
