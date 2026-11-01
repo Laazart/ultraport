@@ -12,7 +12,7 @@ URL = '/api/horario/dia/'
 FECHA = date(2026, 10, 24)
 CAMPOS_PRIVADOS = {'rut', 'correo', 'telefono', 'contrato', 'id_contrato', 'id_usuario'}
 
-_ruts = count(10000000)
+_ruts = count(90000000)
 
 
 def _claves(dato):
@@ -38,17 +38,15 @@ def _filas(data):
 
 class HorarioDiaTests(APITestCase):
     def setUp(self):
-        self.bloque1 = BloqueTurno.objects.create(
-            nombre_bloque='primer_turno', hora_inicio=time(6), hora_termino=time(11), orden_secuencia=1)
-        self.bloque2 = BloqueTurno.objects.create(
-            nombre_bloque='segundo_turno', hora_inicio=time(14), hora_termino=time(22), orden_secuencia=2)
-        self.bloque3 = BloqueTurno.objects.create(
-            nombre_bloque='tercer_turno', hora_inicio=time(23), hora_termino=time(7), orden_secuencia=3)
-        self.naves = Area.objects.create(nombre_area='Naves y Embarcaciones')
-        self.almacenes = Area.objects.create(nombre_area='Almacenes 1 y 4')
-        self.capataz = Puesto.objects.create(nombre_puesto='Capataz')
-        self.operador = Puesto.objects.create(nombre_puesto='Operador de Payloader')
-        self.payloader = Maquinaria.objects.create(nombre_maquinaria='Payloader', especialidad='Carga')
+        self.bloque1 = self._bloque(1, 'primer_turno', time(6), time(11))
+        self.bloque2 = self._bloque(2, 'segundo_turno', time(14), time(22))
+        self.bloque3 = self._bloque(3, 'tercer_turno', time(23), time(7))
+        self.naves, _ = Area.objects.get_or_create(nombre_area='Naves y Embarcaciones')
+        self.almacenes, _ = Area.objects.get_or_create(nombre_area='Almacenes 1 y 4')
+        self.capataz, _ = Puesto.objects.get_or_create(nombre_puesto='Capataz')
+        self.operador, _ = Puesto.objects.get_or_create(nombre_puesto='Operador de Payloader')
+        self.payloader, _ = Maquinaria.objects.get_or_create(
+            nombre_maquinaria='Payloader', defaults={'especialidad': 'payloader'})
 
         self.admin = self._usuario('admin', Roles.ADMINISTRADOR)
         self.encargado = self._usuario('encargado', Roles.PLANIFICADOR)
@@ -56,6 +54,12 @@ class HorarioDiaTests(APITestCase):
         self.otro = self._usuario('otro', Roles.TRABAJADOR)
 
         self.malla = Malla.objects.create(fecha=FECHA, estado=Malla.Estados.PUBLICADA)
+
+    def _bloque(self, orden, nombre, inicio, termino):
+        bloque, _ = BloqueTurno.objects.update_or_create(
+            orden_secuencia=orden,
+            defaults={'nombre_bloque': nombre, 'hora_inicio': inicio, 'hora_termino': termino})
+        return bloque
 
     def _usuario(self, nombre, rol=None, **extra):
         return Usuario.objects.create_user(
