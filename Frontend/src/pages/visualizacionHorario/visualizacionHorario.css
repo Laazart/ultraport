@@ -1,0 +1,344 @@
+.hor-contenedor {
+  max-width: 1040px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.hor-controles {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.hor-fecha {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hor-input.form-control {
+  width: auto;
+  background: #0A1420;
+  border: 1px solid #1E3349;
+  color: #E9EEF5;
+  font-size: 14px;
+  color-scheme: dark;
+}
+
+.hor-input.form-control:focus {
+  background: #0A1420;
+  color: #E9EEF5;
+  border-color: #F2A63D;
+  box-shadow: 0 0 0 2px rgba(242, 166, 61, 0.2);
+}
+
+.hor-icono {
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid #1E3349;
+  border-radius: 8px;
+  color: #C7D1DE;
+  cursor: pointer;
+  transition: border-color .15s ease, color .15s ease;
+}
+
+.hor-icono:hover {
+  border-color: #F2A63D;
+  color: #F2A63D;
+}
+
+.hor-chip {
+  background: transparent;
+  border: 1px solid #1E3349;
+  color: #C7D1DE;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: border-color .15s ease, color .15s ease, background .15s ease;
+}
+
+.hor-chip:hover {
+  border-color: #F2A63D;
+  color: #F2A63D;
+  background: rgba(242, 166, 61, 0.08);
+}
+
+.hor-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #F2A63D;
+  color: #0A1420;
+  border: none;
+  border-radius: 8px;
+  padding: 9px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .15s ease;
+}
+
+.hor-btn:hover {
+  background: #F5B85F;
+}
+
+.hor-muted {
+  color: #7E90A8;
+  font-size: 13px;
+}
+
+.hor-cargando {
+  opacity: 0.55;
+  pointer-events: none;
+  transition: opacity .15s ease;
+}
+
+.hor-panel {
+  background: #101C2C;
+  border: 1px solid #1E3349;
+  border-radius: 10px;
+  padding: 18px 20px 22px;
+}
+
+.hor-mi-turno {
+  background: rgba(242, 166, 61, 0.08);
+  border: 1px solid rgba(242, 166, 61, 0.45);
+  border-radius: 10px;
+  padding: 16px 20px;
+  margin-bottom: 16px;
+}
+
+.hor-mi-turno-titulo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #F2A63D;
+}
+
+.hor-mi-turno-bloque {
+  font-size: 20px;
+  font-weight: 600;
+  color: #F4F7FB;
+  margin: 6px 0 8px;
+}
+
+.hor-mi-turno-detalle {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  font-size: 13.5px;
+  color: #C7D1DE;
+}
+
+.hor-aviso {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(242, 196, 109, 0.1);
+  border: 1px solid rgba(242, 196, 109, 0.4);
+  color: #F2C46D;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+
+.hor-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+@media (max-width: 640px) {
+  .hor-tabs {
+    grid-template-columns: 1fr;
+  }
+}
+
+.hor-tab {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  background: #0E1826;
+  border: 1px solid #1E3349;
+  border-radius: 8px;
+  padding: 10px 14px;
+  color: #C7D1DE;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color .15s ease, background .15s ease;
+}
+
+.hor-tab:hover {
+  border-color: #2B4A69;
+}
+
+.hor-tab.activo {
+  border-color: #F2A63D;
+  background: rgba(242, 166, 61, 0.08);
+}
+
+.hor-tab-nombre {
+  font-size: 14px;
+  font-weight: 600;
+  color: #E9EEF5;
+}
+
+.hor-tab-horario {
+  font-size: 12px;
+  color: #7E90A8;
+}
+
+.hor-tab-total {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  min-width: 26px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  font-weight: 600;
+  text-align: center;
+  background: rgba(126, 144, 168, 0.15);
+  color: #C7D1DE;
+}
+
+.hor-tab.activo .hor-tab-total {
+  background: #F2A63D;
+  color: #0A1420;
+}
+
+.hor-encabezado {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 8px 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #1E3349;
+  margin-bottom: 8px;
+}
+
+.hor-encabezado-titulo {
+  font-size: 16px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: #F4F7FB;
+}
+
+.hor-encabezado-sub {
+  font-size: 13px;
+  color: #A9B6C6;
+  margin-top: 2px;
+}
+
+.hor-encabezado-meta {
+  text-align: right;
+  font-size: 12px;
+  color: #7E90A8;
+  line-height: 1.5;
+}
+
+.hor-area {
+  margin-top: 18px;
+}
+
+.hor-area-titulo {
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #F2A63D;
+  margin: 0 0 8px;
+}
+
+.hor-faena + .hor-faena {
+  margin-top: 12px;
+}
+
+.hor-faena-titulo {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #C7D1DE;
+  margin: 0 0 6px;
+}
+
+.hor-tabla {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  color: #E9EEF5;
+}
+
+.hor-tabla th {
+  text-align: left;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #7E90A8;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 7px 10px;
+  border-bottom: 1px solid #1E3349;
+}
+
+.hor-tabla td {
+  padding: 9px 10px;
+  border-bottom: 1px solid #16283C;
+}
+
+.hor-codigo {
+  width: 90px;
+  color: #A9B6C6;
+  font-variant-numeric: tabular-nums;
+}
+
+.hor-fila-mia td {
+  background: rgba(242, 166, 61, 0.1);
+  font-weight: 600;
+}
+
+.hor-fila-mia td:first-child {
+  box-shadow: inset 3px 0 0 #F2A63D;
+}
+
+.hor-tu {
+  margin-left: 8px;
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #F2A63D;
+  color: #0A1420;
+}
+
+.hor-vacio {
+  text-align: center;
+  padding: 36px 12px;
+  color: #7E90A8;
+}
+
+.hor-vacio i {
+  font-size: 2rem;
+}
+
+.hor-vacio p {
+  margin: 10px 0 0;
+  font-size: 14px;
+}
