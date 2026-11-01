@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import authService from '../../services/auth';
+import TextoRol from '../../components/TextoRol';
 import '../home/Home.css';
 
 const RUTA_HOME = '/home';
@@ -32,7 +33,7 @@ const ReportesYExportacion = () => {
       <div className="up-topbar">
         <div className="up-brand">
           <img src="/logo/logo-ultraport-color.svg" alt="Ultraport" className="up-logo" />
-          <span className="sub">Panel de Turnos</span>
+          <span className="sub">Panel de Turnos<TextoRol /></span>
         </div>
 
         <div className="up-user">
