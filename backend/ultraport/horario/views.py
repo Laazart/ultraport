@@ -8,7 +8,7 @@ from usuarios.permissions import Permisos, TienePermiso
 from .models import NotificacionInasistencia, Malla, Turno, Asignacion
 from .serializers import CambiarEstadoSerializer, NotificacionInasistenciaSerializer
 from datetime import timedelta, date
-from .plantillas import PLANTILLA_1_TURNO
+from .plantillas import PLANTILLA_BASE, BLOQUES_PLANTILLA
 from .services import requerimientos_desde_plantilla
 from django.utils import timezone
 from rest_framework.decorators import action
@@ -87,10 +87,9 @@ class MallaViewSet(viewsets.ReadOnlyModelViewSet):
     def iniciar_plantilla(self, request):
         fecha_str = request.data.get('fecha')
         fecha = date.fromisoformat(fecha_str) if fecha_str else _manana()
-        id_bloque = int(request.data.get('id_bloque', 1))
         malla = iniciar_planificacion(
             fecha=fecha,
-            requerimientos=requerimientos_desde_plantilla(id_bloque, PLANTILLA_1_TURNO),
+            requerimientos=requerimientos_desde_plantilla(),
             creado_por=request.user,
         )
         return Response(MallaSerializer(malla).data, status=status.HTTP_201_CREATED)

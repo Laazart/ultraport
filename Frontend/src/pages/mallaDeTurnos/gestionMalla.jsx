@@ -8,6 +8,21 @@ import './gestionMalla.css';
 
 const RUTA_HOME = '/home';
 
+const ETIQUETAS_BLOQUE = {
+  primer_turno: '1° turno (08:00–13:00)',
+  segundo_turno: '2° turno (14:00–22:00)',
+  tercer_turno: '3° turno (23:00–07:00)',
+};
+
+const ORDEN_BLOQUE = { primer_turno: 1, segundo_turno: 2, tercer_turno: 3 };
+
+const agruparPor = (lista, clave) =>
+  lista.reduce((acc, item) => {
+    const k = clave(item);
+    (acc[k] ||= []).push(item);
+    return acc;
+  }, {});
+
 const GestionMalla = () => {
   const [usuario, setUsuario] = useState(null);
   const [mallas, setMallas] = useState([]);
@@ -82,12 +97,7 @@ const GestionMalla = () => {
 
   const editable = malla && malla.estado !== 'publicada' && !cargando;
 
-  const porArea = malla
-    ? malla.turnos.reduce((acc, t) => {
-        (acc[t.area] ||= []).push(t);
-        return acc;
-      }, {})
-    : {};
+  const porArea = malla ? agruparPor(malla.turnos, (t) => t.area) : {};
 
   return (
     <div className="up-shell">
@@ -167,67 +177,78 @@ const GestionMalla = () => {
             </div>
           </div>
 
-          {Object.entries(porArea).map(([area, turnos]) => (
-            <div key={area} className="gm-section">
-              <h2>{area}</h2>
-              {turnos.map((turno) => (
-                <div key={turno.id_turno} className="gm-turno">
-                  <h3 className="gm-turno-titulo">
-                    {turno.puesto}
-                    <span className="badge-cupos">
-                      {turno.asignaciones.length}/{turno.cupos} cupos
-                    </span>
-                  </h3>
+          {Object.entries(porArea).map(([area, turnosArea]) => {
+            const porBloque = agruparPor(turnosArea, (t) => t.bloque.nombre_bloque);
+            return (
+              <div key={area} className="gm-section">
+                <h2>{area}</h2>
+                {Object.entries(porBloque)
+                  .sort(([a], [b]) => ORDEN_BLOQUE[a] - ORDEN_BLOQUE[b])
+                  .map(([bloque, turnosBloque]) => (
+                    <div key={bloque} className="gm-bloque">
+                      <h3 className="gm-bloque-titulo">{ETIQUETAS_BLOQUE[bloque] ?? bloque}</h3>
 
-                  {turno.asignaciones.length === 0 ? (
-                    <p className="gm-vacio">Sin trabajadores asignados.</p>
-                  ) : (
-                    <div className="table-responsive">
-                      <table className="table gm-tabla">
-                        <thead>
-                          <tr>
-                            <th>Nombre</th>
-                            <th>RUT</th>
-                            <th>Correo</th>
-                            <th>Teléfono</th>
-                            <th>Contrato</th>
-                            <th>Máquina</th>
-                            <th>Especialidad</th>
-                            <th>Estado</th>
-                            <th></th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {turno.asignaciones.map((a) => (
-                            <tr key={a.id_asignacion}>
-                              <td>{a.usuario_nombre}</td>
-                              <td>{a.rut ?? '—'}</td>
-                              <td>{a.correo ?? '—'}</td>
-                              <td>{a.telefono ?? '—'}</td>
-                              <td>{a.contrato ?? '—'}</td>
-                              <td>{a.maquina ?? '—'}</td>
-                              <td>{a.especialidad ?? '—'}</td>
-                              <td><span className="gm-estado">{a.estado}</span></td>
-                              <td className="text-end">
-                                {editable && (
-                                  <button
-                                    className="gm-btn gm-btn-danger"
-                                    onClick={() => handleQuitar(a.id_asignacion)}
-                                  >
-                                    Quitar
-                                  </button>
-                                )}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                      {turnosBloque.map((turno) => (
+                        <div key={turno.id_turno} className="gm-turno">
+                          <h4 className="gm-turno-titulo">
+                            {turno.puesto}
+                            <span className="badge-cupos">
+                              {turno.asignaciones.length}/{turno.cupos} cupos
+                            </span>
+                          </h4>
+
+                          {turno.asignaciones.length === 0 ? (
+                            <p className="gm-vacio">Sin trabajadores asignados.</p>
+                          ) : (
+                            <div className="table-responsive">
+                              <table className="table gm-tabla">
+                                <thead>
+                                  <tr>
+                                    <th>Nombre</th>
+                                    <th>RUT</th>
+                                    <th>Correo</th>
+                                    <th>Teléfono</th>
+                                    <th>Contrato</th>
+                                    <th>Máquina</th>
+                                    <th>Especialidad</th>
+                                    <th>Estado</th>
+                                    <th></th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {turno.asignaciones.map((a) => (
+                                    <tr key={a.id_asignacion}>
+                                      <td>{a.usuario_nombre}</td>
+                                      <td>{a.rut ?? '—'}</td>
+                                      <td>{a.correo ?? '—'}</td>
+                                      <td>{a.telefono ?? '—'}</td>
+                                      <td>{a.contrato ?? '—'}</td>
+                                      <td>{a.maquina ?? '—'}</td>
+                                      <td>{a.especialidad ?? '—'}</td>
+                                      <td><span className="gm-estado">{a.estado}</span></td>
+                                      <td className="text-end">
+                                        {editable && (
+                                          <button
+                                            className="gm-btn gm-btn-danger"
+                                            onClick={() => handleQuitar(a.id_asignacion)}
+                                          >
+                                            Quitar
+                                          </button>
+                                        )}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                        </div>
+                      ))}
                     </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          ))}
+                  ))}
+              </div>
+            );
+          })}
         </section>
       )}
     </div>
