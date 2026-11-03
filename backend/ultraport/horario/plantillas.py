@@ -1,4 +1,4 @@
-PLANTILLA_1_TURNO = [
+PLANTILLA_BASE = [
     ('Naves y Embarcaciones', 'Movilizador Nave', 16, None),
     ('Naves y Embarcaciones', 'Capataz', 7, None),
     ('Naves y Embarcaciones', 'Hatchclerk', 5, None),
@@ -23,4 +23,5 @@ PLANTILLA_1_TURNO = [
     ('Almacenes 1 y 4', 'Operador de Grúa Horquilla Tierra', 1, 'Grúa horquilla'),
 ]
 
-TOTAL_CUPOS = sum(c for _, _, c, _ in PLANTILLA_1_TURNO)  
+BLOQUES_PLANTILLA = [1, 2, 3]
+TOTAL_CUPOS_POR_BLOQUE = sum(c for _, _, c, _ in PLANTILLA_BASE) 

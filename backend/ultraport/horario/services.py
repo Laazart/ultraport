@@ -2,10 +2,10 @@ from django.db import transaction
 from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 from usuarios.models import Usuario
-from .models import Malla, Turno, Asignacion, ESTADOS_ACTIVOS
+from .models import Malla, Turno, Asignacion, ESTADOS_ACTIVOS, Area, BloqueTurno
 from .reglas import validar_asignacion, candidatos_para_turno
-
-
+from .plantillas import PLANTILLA_BASE, BLOQUES_PLANTILLA
+from usuarios.models import Puesto, Maquinaria
 def _validar_editable(malla):
     if malla.estado == Malla.Estados.PUBLICADA:
         raise ValidationError('La malla está publicada y no se puede modificar.')
@@ -100,20 +100,21 @@ def publicar_malla(malla):
     malla.save(update_fields=['estado', 'fecha_actualizacion'])
     return malla
 
-from usuarios.models import Puesto, Maquinaria
-from .models import Area, BloqueTurno
-from .plantillas import PLANTILLA_1_TURNO
 
 
-def requerimientos_desde_plantilla(id_bloque, plantilla=PLANTILLA_1_TURNO):
-    bloque = BloqueTurno.objects.get(pk=id_bloque)
+def requerimientos_desde_plantilla(plantilla=PLANTILLA_BASE, bloques=BLOQUES_PLANTILLA):
     requerimientos = []
-    for area, puesto, cupos, maquina in plantilla:
-        requerimientos.append({
-            'id_bloque': bloque,
-            'id_area': Area.objects.get(nombre_area=area),
-            'id_puesto': Puesto.objects.get(nombre_puesto=puesto),
-            'id_maquinaria_req': Maquinaria.objects.get(nombre_maquinaria=maquina) if maquina else None,
-            'cupos': cupos,
-        })
+    areas = {a.nombre_area: a for a in Area.objects.all()}
+    puestos = {p.nombre_puesto: p for p in Puesto.objects.all()}
+    maquinas = {m.nombre_maquinaria: m for m in Maquinaria.objects.all()}
+    for id_bloque in bloques:
+        bloque = BloqueTurno.objects.get(pk=id_bloque)
+        for area, puesto, cupos, maquina in plantilla:
+            requerimientos.append({
+                'id_bloque': bloque,
+                'id_area': areas[area],
+                'id_puesto': puestos[puesto],
+                'id_maquinaria_req': maquinas[maquina] if maquina else None,
+                'cupos': cupos,
+            })
     return requerimientos
