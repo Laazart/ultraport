@@ -128,7 +128,14 @@ class TurnoViewSet(viewsets.ReadOnlyModelViewSet):
     def candidatos(self, request, pk=None):
         turno = self.get_object()
         data = [
-            {'id_usuario': usuario.pk, 'nombre': str(usuario), 'horas_semana': horas}
+            {
+                'id_usuario': usuario.pk,
+                'nombre': f'{usuario.nombres} {usuario.apellidos}',
+                'rut': usuario.rut,
+                'correo': usuario.correo,
+                'telefono': usuario.telefono,
+                'horas_semana': horas,
+            }
             for horas, usuario in candidatos_para_turno(turno)
         ]
         return Response(data)

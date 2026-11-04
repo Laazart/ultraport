@@ -1,5 +1,6 @@
 from django.db import transaction
 from django.utils import timezone
+from django.conf import settings
 from rest_framework.exceptions import ValidationError
 from usuarios.models import Usuario
 from .models import Malla, Turno, Asignacion, ESTADOS_ACTIVOS, Area, BloqueTurno
@@ -87,14 +88,20 @@ def autocompletar_malla(malla):
 
 
 @transaction.atomic
-def publicar_malla(malla):
+def publicar_malla(malla, exigir_cupos=None):
     _validar_editable(malla)
-
-    incompletos = [t for t in malla.turnos.all() if _cupos_ocupados(t) < t.cupos]
- #   if incompletos:
- #       raise ValidationError(
- #            f'Hay {len(incompletos)} turno(s) con cupos sin cubrir. Complete la malla antes de publicar.'
- #        )
+    if exigir_cupos is None:
+        exigir_cupos = settings.HORARIO_EXIGIR_CUPOS_COMPLETOS
+    if exigir_cupos:
+        incompletos = [t for t in malla.turnos.all() if _cupos_ocupados(t) < t.cupos]
+        if incompletos:
+            raise ValidationError(
+                f'Hay {len(incompletos)} turno(s) con cupos sin cubrir. Complete la malla antes de publicar.'
+            )
+    Asignacion.objects.filter(
+        id_turno__id_malla=malla,
+        estado=Asignacion.Estados.BORRADOR,
+    ).update(estado=Asignacion.Estados.CONFIRMADO)
 
     malla.estado = Malla.Estados.PUBLICADA
     malla.save(update_fields=['estado', 'fecha_actualizacion'])
