@@ -73,6 +73,20 @@ const horarioService = {
     const response = await axios.post(`${API_URL}mallas/iniciar-plantilla/`, body, getAuthHeaders());
     return response.data;
   },
+  candidatosTurno: async (idTurno) => {
+  const response = await axios.get(`${API_URL}turnos/${idTurno}/candidatos/`, getAuthHeaders());
+  return response.data;
+},
+
+asignar: async (idTurno, idUsuario) => {
+  const response = await axios.post(
+    `${API_URL}asignaciones/`,
+    { id_turno: idTurno, id_usuario: idUsuario },
+    getAuthHeaders()
+  );
+  return response.data;
+},
 };
 
 export default horarioService;
+
