@@ -86,6 +86,31 @@ asignar: async (idTurno, idUsuario) => {
   );
   return response.data;
 },
+descargarArchivo: async (url, params, nombre) => {
+  try {
+    const response = await axios.get(`${API_URL}${url}`, {
+      ...getAuthHeaders(),
+      params,
+      responseType: 'blob',
+    });
+    const href = URL.createObjectURL(response.data);
+    const enlace = document.createElement('a');
+    enlace.href = href;
+    enlace.download = nombre;
+    enlace.click();
+    URL.revokeObjectURL(href);
+  } catch (err) {
+    if (err.response?.data instanceof Blob) {
+      const texto = await err.response.data.text();
+      try {
+        err.response.data = JSON.parse(texto);
+      } catch {
+        err.response.data = { detail: 'No se pudo generar el archivo.' };
+      }
+    }
+    throw err;
+  }
+},
 };
 
 export default horarioService;

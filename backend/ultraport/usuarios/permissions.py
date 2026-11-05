@@ -10,6 +10,7 @@ class Permisos:
     GESTIONAR_INASISTENCIA = 'gestionar.inasistencia'
     PLANIFICAR_TURNOS = 'horario.planificar'
     VER_HORARIO = 'horario.ver'
+    REPORTES_EXPORTACION = 'reportes.exportar'
 
 
 PERMISOS_POR_ROL = {
@@ -23,6 +24,7 @@ PERMISOS_POR_ROL = {
         Permisos.GESTIONAR_INASISTENCIA,
         Permisos.PLANIFICAR_TURNOS,
         Permisos.VER_HORARIO,
+        Permisos.REPORTES_EXPORTACION,
 
     },
     Roles.TRABAJADOR: {
