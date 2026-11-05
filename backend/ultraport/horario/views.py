@@ -6,23 +6,21 @@ from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
 from usuarios.permissions import Permisos, TienePermiso
 from .models import NotificacionInasistencia, Malla, Turno, Asignacion
-from .serializers import CambiarEstadoSerializer, NotificacionInasistenciaSerializer
 from datetime import timedelta, date
 from .plantillas import PLANTILLA_BASE, BLOQUES_PLANTILLA
-from .services import requerimientos_desde_plantilla
 from django.utils import timezone
 from rest_framework.decorators import action
 
 from .reglas import candidatos_para_turno
 from .serializers import (
     AsignacionSerializer, IniciarPlanificacionSerializer, MallaSerializer,
-    ReemplazarAsignacionSerializer, TurnoSerializer,
+    ReemplazarAsignacionSerializer, TurnoSerializer, CambiarEstadoSerializer, NotificacionInasistenciaSerializer
 )
 from .services import (
     asignar_usuario, autocompletar_malla, iniciar_planificacion,
-    publicar_malla, quitar_asignacion, reemplazar_asignacion,
+    publicar_malla, quitar_asignacion, reemplazar_asignacion, requerimientos_desde_plantilla
 )
-
+from .reportes import pdf_inasistencias, pdf_malla
 class MisAvisosView(generics.ListCreateAPIView):
     serializer_class = NotificacionInasistenciaSerializer
     permission_classes = [IsAuthenticated, TienePermiso]
@@ -167,3 +165,36 @@ class AsignacionViewSet(
         serializer.is_valid(raise_exception=True)
         nueva = reemplazar_asignacion(asignacion, serializer.validated_data['id_usuario'])
         return Response(AsignacionSerializer(nueva).data)
+class ReporteMallaPdfView(APIView):
+    permission_classes = [IsAuthenticated, TienePermiso]
+    permiso_requerido = Permisos.REPORTES_EXPORTACION
+
+    def get(self, request, pk):
+        malla = get_object_or_404(Malla, pk=pk)
+        if malla.estado != Malla.Estados.PUBLICADA:
+            return Response(
+                {'detail': 'Solo se puede exportar una malla publicada.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return pdf_malla(malla, request.query_params.get('bloque') or None)
+
+
+class ReporteInasistenciasPdfView(APIView):
+    permission_classes = [IsAuthenticated, TienePermiso]
+    permiso_requerido = Permisos.REPORTES_EXPORTACION
+
+    def get(self, request):
+        try:
+            desde = date.fromisoformat(request.query_params['desde'])
+            hasta = date.fromisoformat(request.query_params['hasta'])
+        except (KeyError, ValueError):
+            return Response(
+                {'detail': 'Indique un rango válido (desde y hasta en formato AAAA-MM-DD).'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if desde > hasta:
+            return Response(
+                {'detail': 'La fecha "desde" no puede ser posterior a "hasta".'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return pdf_inasistencias(desde, hasta, request.query_params.get('estado') or None)

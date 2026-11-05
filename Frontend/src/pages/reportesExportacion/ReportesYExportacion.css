@@ -1,0 +1,36 @@
+.rep-panel { display: flex; flex-direction: column; gap: 12px; }
+
+.rep-descripcion { margin: 0; }
+
+.rep-select { min-width: 260px; max-width: 360px; }
+
+.rep-filtros {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.rep-campo {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  color: #7E90A8;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.rep-campo .gm-input { max-width: none; width: 100%; }
+
+.rep-acciones { margin-top: 4px; }
+
+.rep-aviso {
+  margin: 0;
+  font-size: 13px;
+  color: #F2867D;
+}
+
+@media (max-width: 768px) {
+  .rep-filtros { grid-template-columns: 1fr; }
+  .rep-select { min-width: 0; width: 100%; max-width: none; }
+}
