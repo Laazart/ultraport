@@ -342,3 +342,8 @@
   margin: 10px 0 0;
   font-size: 14px;
 }
+.hor-acciones {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}

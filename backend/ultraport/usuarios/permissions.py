@@ -30,6 +30,7 @@ PERMISOS_POR_ROL = {
     Roles.TRABAJADOR: {
         Permisos.NOTIFICAR_INASISTENCIA,
         Permisos.VER_HORARIO,
+        Permisos.REPORTES_EXPORTACION,
     },
 }
 

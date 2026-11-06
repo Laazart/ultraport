@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import authService from '../../services/auth';
 import TextoRol from '../../components/TextoRol';
 import horarioVistaService from '../../services/horarioVista';
+import horarioService from '../../services/horario';
 import '../home/Home.css';
 import './visualizacionHorario.css';
 
@@ -176,6 +177,14 @@ const VistaDia = () => {
     setFecha(nueva);
   };
 
+  const descargarPdf = () => {
+    if (!data?.malla) return;
+    const idMalla = data.malla.id_malla ?? data.malla;
+    horarioService
+      .descargarArchivo(`reportes/malla/${idMalla}/pdf/`, {}, `horario_${fecha}.pdf`)
+      .catch((err) => setError(mensajeError(err, 'No se pudo generar el PDF.')));
+  };
+
   const bloque = data?.bloques.find((b) => b.id_bloque === bloqueActivo);
   const noPublicada = data?.malla && !data.publicada;
 
@@ -197,16 +206,25 @@ const VistaDia = () => {
           )}
         </div>
 
-        {data?.puede_editar && (
-          <button
-            type="button"
-            className="hor-btn"
-            onClick={() => navigate(`${RUTA_GESTION}?fecha=${fecha}`)}
-          >
-            <i className="bi bi-pencil-square"></i>
-            Editar / Realizar asignaciones
-          </button>
-        )}
+        <div className="hor-acciones">
+          {data?.malla && data.publicada && (
+            <button type="button" className="hor-btn hor-btn-outline" onClick={descargarPdf}>
+              <i className="bi bi-file-earmark-pdf"></i>
+              Descargar PDF
+            </button>
+          )}
+
+          {data?.puede_editar && (
+            <button
+              type="button"
+              className="hor-btn"
+              onClick={() => navigate(`${RUTA_GESTION}?fecha=${fecha}`)}
+            >
+              <i className="bi bi-pencil-square"></i>
+              Editar / Realizar asignaciones
+            </button>
+          )}
+        </div>
       </div>
 
       {error && <div className="alert alert-danger p-2">{error}</div>}
