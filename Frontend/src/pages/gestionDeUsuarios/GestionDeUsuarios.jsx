@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import authService from '../../services/auth';
 import './GestionDeUsuarios.css';
 import userService from '../../services/userService';
+
 const RUTA_HOME = '/home';
 
 const GestionDeUsuarios = () => {
@@ -10,6 +11,7 @@ const GestionDeUsuarios = () => {
   const [listaUsuarios, setListaUsuarios] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [usuarioAEliminar, setUsuarioAEliminar] = useState(null);
+  const [busqueda, setBusqueda] = useState('');
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -42,11 +44,12 @@ const GestionDeUsuarios = () => {
   const handleVolver = () => {
     navigate(RUTA_HOME);
   };
+
   const handleNuevoUsuario = () => navigate('/usuarios/nuevo');
 
   // RUTA PARA VER Y OTRA PARA EDITAR
   const handleVerUsuario = (id) => navigate(`/usuarios/ver/${id}`);
-  const handleEditarUsuario = (id) => navigate(`/usuarios/editar/${id}`);    
+  const handleEditarUsuario = (id) => navigate(`/usuarios/editar/${id}`);
 
   const abrirModalEliminar = (id) => setUsuarioAEliminar(id);
   const cerrarModalEliminar = () => setUsuarioAEliminar(null);
@@ -55,7 +58,7 @@ const GestionDeUsuarios = () => {
     if (!usuarioAEliminar) return;
     try {
       await userService.eliminarUsuario(usuarioAEliminar);
-      setListaUsuarios(listaUsuarios.map(u => 
+      setListaUsuarios(listaUsuarios.map(u =>
         u.id_usuario === usuarioAEliminar ? { ...u, estado: 'inactivo' } : u
       ));
     } catch (error) {
@@ -65,6 +68,15 @@ const GestionDeUsuarios = () => {
       cerrarModalEliminar();
     }
   };
+
+  const termino = busqueda.trim().toLowerCase();
+  const usuariosFiltrados = listaUsuarios.filter((u) => {
+    if (!termino) return true;
+    const nombreCompleto = `${u.nombres} ${u.apellidos}`.toLowerCase();
+    const rut = (u.rut || '').toLowerCase();
+    return nombreCompleto.includes(termino) || rut.includes(termino);
+  });
+
   return (
     <div className="up-shell">
       <div className="up-topbar">
@@ -98,11 +110,18 @@ const GestionDeUsuarios = () => {
         <h1>Gestión de Usuarios</h1>
         <p>Administra los roles, altas y bajas del personal</p>
       </div>
+
       <div className="up-dashboard-container">
         <div className="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
           <div className="up-search d-flex align-items-center">
             <i className="bi bi-search me-2"></i>
-            <input type="text" placeholder="Buscar por RUT o Nombre..." className="form-control-plaintext" />
+            <input
+              type="text"
+              placeholder="Buscar por RUT o Nombre..."
+              className="form-control-plaintext"
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+            />
           </div>
           <button onClick={handleNuevoUsuario} className="btn-primary d-flex align-items-center gap-2">
             <i className="bi bi-person-plus"></i> Nuevo Usuario
@@ -123,16 +142,18 @@ const GestionDeUsuarios = () => {
             </thead>
             <tbody>
               {cargando ? (
-                <tr><td colSpan="5" className="text-center py-4 text-light">Cargando usuarios...</td></tr>
+                <tr><td colSpan="6" className="text-center py-4 text-light">Cargando usuarios...</td></tr>
               ) : listaUsuarios.length === 0 ? (
-                <tr><td colSpan="5" className="text-center py-4 text-muted">No hay usuarios registrados.</td></tr>
+                <tr><td colSpan="6" className="text-center py-4 text-muted">No hay usuarios registrados.</td></tr>
+              ) : usuariosFiltrados.length === 0 ? (
+                <tr><td colSpan="6" className="text-center py-4 text-muted">No se encontraron usuarios.</td></tr>
               ) : (
-                listaUsuarios.map((u) => (
+                usuariosFiltrados.map((u) => (
                   <tr key={u.id_usuario}>
                     <td className="fw-medium text-light">{u.rut}</td>
                     <td className="text-light">{u.nombres} {u.apellidos}</td>
                     <td><span className="rol-text">{u.correo}</span></td>
-                    <td><span className="fw-medium ">{u.telefono}</span></td>
+                    <td><span className="fw-medium">{u.telefono}</span></td>
                     <td>
                       <span className={`badge rounded-pill up-status-badge ${u.estado === 'activo' ? 'active' : 'inactive'}`}>
                         {u.estado}
@@ -140,27 +161,25 @@ const GestionDeUsuarios = () => {
                     </td>
                     <td>
                       <div className="d-flex gap-2 justify-content-center">
-                        
                         <button onClick={() => handleVerUsuario(u.id_usuario)} className="btn-icon view" title="Ver Detalle">
                           <i className="bi bi-eye"></i>
                         </button>
-                        
-                        <button 
-                          onClick={() => handleEditarUsuario(u.id_usuario)} 
-                          className="btn-icon edit" 
+
+                        <button
+                          onClick={() => handleEditarUsuario(u.id_usuario)}
+                          className="btn-icon edit"
                           title="Modificar Usuario">
                           <i className="bi bi-pencil-square"></i>
                         </button>
 
-                        <button 
-                          onClick={() => abrirModalEliminar(u.id_usuario)} 
-                          className="btn-icon delete" 
+                        <button
+                          onClick={() => abrirModalEliminar(u.id_usuario)}
+                          className="btn-icon delete"
                           title="Desactivar"
                           disabled={u.estado === 'inactivo'}
                           style={{ opacity: u.estado === 'inactivo' ? 0.3 : 1, cursor: u.estado === 'inactivo' ? 'not-allowed' : 'pointer' }}>
                           <i className="bi bi-trash"></i>
                         </button>
-
                       </div>
                     </td>
                   </tr>
@@ -175,7 +194,7 @@ const GestionDeUsuarios = () => {
         <div className="up-modal-overlay">
           <div className="up-modal">
             <div className="up-modal-icon text-danger mb-3">
-              <i className="bi bi-exclamation-triangle" style={{fontSize: '40px'}}></i>
+              <i className="bi bi-exclamation-triangle" style={{ fontSize: '40px' }}></i>
             </div>
             <h4 className="text-light mb-2">¿Dar de baja al Usuario?</h4>
             <p className="text-muted mb-4">El usuario pasará a estado inactivo y no podrá acceder al sistema.</p>
