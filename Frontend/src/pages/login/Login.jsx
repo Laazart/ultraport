@@ -4,7 +4,7 @@ import './login.css'
 import { useNavigate,Link } from 'react-router-dom'
 
 function Login() {
-  const [correo, setCorreo] = useState('');
+  const [identificador, setIdentificador] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   
@@ -15,10 +15,14 @@ function Login() {
     setError(''); 
     
     try {  
-      await authService.login(correo, password);
+      await authService.login(identificador, password);
       navigate('/home');
     } catch (err) {
-      setError('Credenciales incorrectas o problema de conexión.');
+      setError(
+        err.response
+          ? 'RUT o contraseña incorrectos'
+          : 'No se pudo conectar con el servidor.'
+      );
     }
   };
 
@@ -38,7 +42,7 @@ function Login() {
           </div>
           
           <p className="subtitle text-white text-center mb-4">
-            Ingrese su correo y contraseña para acceder.
+            Ingrese su RUT o correo y su contraseña para acceder.
           </p>
 
           {error && <div className="alert alert-danger p-2 mb-3">{error}</div>}
@@ -46,12 +50,13 @@ function Login() {
           <form onSubmit={handleLogin}>
             <div className="mb-3">
               <input 
-                type="email" 
+                type="text"
                 className="form-control form-control-lg"
-                placeholder="Correo electronico" 
-                required 
-                value={correo}
-                onChange={(e) => setCorreo(e.target.value)}
+                placeholder="RUT o correo electrónico"
+                autoComplete="username"
+                required
+                value={identificador}
+                onChange={(e) => setIdentificador(e.target.value)}
               />
             </div>
             <div className="mb-3">

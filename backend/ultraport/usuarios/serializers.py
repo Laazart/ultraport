@@ -1,10 +1,26 @@
-from rest_framework_simplejwt.serializers import TokenObtainPairSerializer 
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from rest_framework_simplejwt.settings import api_settings as jwt_settings
+from rest_framework.exceptions import AuthenticationFailed
 from .models import Usuario, Rol , Contrato, Puesto, UsuarioPuesto, TipoLicencia, UsuarioLicencia, Maquinaria, UsuarioMaquinaria
+from .services import buscar_usuario_por_identificador
 from rest_framework import serializers
+from django.contrib.auth import authenticate
+from django.contrib.auth.models import update_last_login
 from django.contrib.auth.password_validation import validate_password
-from django.core.validators import RegexValidator 
+from django.core.validators import RegexValidator
+
+MENSAJE_CREDENCIALES_INVALIDAS = 'RUT o contraseña incorrectos'
+
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+    """Login con RUT o correo + contraseña (RF-01) y entrega de JWT (RF-04)."""
+
+    # Campo de entrada: acepta RUT (con o sin puntos) o correo.
+    username_field = 'identificador'
+    # Mismo mensaje y código para credenciales malas y cuentas bloqueadas:
+    # no se revela si la cuenta existe ni su estado (RF-02).
+    default_error_messages = {'no_active_account': MENSAJE_CREDENCIALES_INVALIDAS}
+
     @classmethod
     def get_token(cls, user):
         token = super().get_token(user)
@@ -12,7 +28,23 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         return token
 
     def validate(self, attrs):
-        data = super().validate(attrs)
+        identificador = attrs[self.username_field]
+        encontrado = buscar_usuario_por_identificador(identificador)
+        # Se autentica siempre (aunque no exista) para no revelar por tiempo
+        # de respuesta si la cuenta existe.
+        self.user = authenticate(
+            request=self.context.get('request'),
+            correo=encontrado.correo if encontrado else identificador,
+            password=attrs['password'],
+        )
+        if not jwt_settings.USER_AUTHENTICATION_RULE(self.user) or self.user.estado != 'activo':
+            raise AuthenticationFailed(
+                self.error_messages['no_active_account'], 'no_active_account')
+
+        refresh = self.get_token(self.user)
+        data = {'refresh': str(refresh), 'access': str(refresh.access_token)}
+        if jwt_settings.UPDATE_LAST_LOGIN:
+            update_last_login(None, self.user)
         data.update({
             'usuario': {
                 'id_usuario': self.user.id_usuario,
@@ -29,7 +61,7 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         return data
 
 class SolicitarRecuperacionSerializer(serializers.Serializer):
-    correo = serializers.EmailField()
+    identificador = serializers.CharField(help_text='RUT o correo de la cuenta.')
 
 
 class RestablecerPasswordSerializer(serializers.Serializer):
@@ -44,10 +76,11 @@ class UsuarioSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=False, min_length=8)
     regex_celular_chile = RegexValidator(regex=r'^9\d{8}$', message="El número de celular debe tener 9 dígitos y comenzar con 9 (ej: 947492086).")
     telefono= serializers.CharField(max_length=9, validators=[regex_celular_chile],help_text="Número celular de Chile (9 dígitos, comenzando con 9)")
+    tipo_contrato = serializers.SerializerMethodField(help_text='Tipo de contrato legible (RF-22), o null si no tiene.')
 
     class Meta:
         model = Usuario
-        fields = ['id_usuario', 'rut', 'nombres', 'apellidos', 'correo','telefono', 'id_rol', 'id_contrato', 'estado', 'fecha_creacion', 'password',]
+        fields = ['id_usuario', 'rut', 'nombres', 'apellidos', 'correo','telefono', 'id_rol', 'id_contrato', 'tipo_contrato', 'estado', 'fecha_creacion', 'password',]
         read_only_fields = ['id_usuario', 'fecha_creacion']# --- NUEVA VALIDACIÓN FUERTE ---
     def validate_id_rol(self, value):
         if value is not None:
@@ -56,6 +89,9 @@ class UsuarioSerializer(serializers.ModelSerializer):
             if value.id_rol not in roles_permitidos:
                 raise serializers.ValidationError("Violación de seguridad: El rol indicado no está permitido o no existe.")
         return value
+    def get_tipo_contrato(self, obj):
+        return obj.id_contrato.get_tipo_display() if obj.id_contrato else None
+
     def validate(self, attrs):
         if self.instance is None and not attrs.get('password'):
             raise serializers.ValidationError({'password': 'La contraseña es obligatoria.'})

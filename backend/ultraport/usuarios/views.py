@@ -6,7 +6,9 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.views import TokenObtainPairView
 from .serializers import CustomTokenObtainPairSerializer, RestablecerPasswordSerializer, SolicitarRecuperacionSerializer, UsuarioSerializer, RolSerializer, ContratoSerializer
 from rest_framework.permissions import AllowAny
-from .services import crear_token_recuperacion, enviar_correo_recuperacion, validar_token
+from .services import (
+    buscar_usuario_por_identificador, crear_token_recuperacion, enviar_correo_recuperacion, validar_token,
+)
 from .permissions import Permisos, TienePermiso
 from .models import Usuario, Rol, Contrato, Puesto, TipoLicencia, Maquinaria, UsuarioPuesto, UsuarioLicencia, UsuarioMaquinaria
 from django.utils import timezone
@@ -14,8 +16,11 @@ from .serializers import (
     PuestoSerializer, TipoLicenciaSerializer, MaquinariaSerializer,
     UsuarioPuestoSerializer, UsuarioLicenciaSerializer, UsuarioMaquinariaSerializer,
 )
+import logging
 
-MENSAJE_GENERICO = 'Si el correo existe, recibirás un enlace para restablecer tu contraseña. ;)'
+logger = logging.getLogger(__name__)
+
+MENSAJE_GENERICO = 'Si la cuenta existe, recibirás un enlace para restablecer tu contraseña.'
 
 class CustomLoginView(TokenObtainPairView):
     serializer_class = CustomTokenObtainPairSerializer
@@ -39,11 +44,16 @@ class SolicitarRecuperacionView(APIView):
         serializer = SolicitarRecuperacionSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        usuario = Usuario.objects.filter(correo=serializer.validated_data['correo'], estado='activo').first()
-        if usuario:
+        usuario = buscar_usuario_por_identificador(serializer.validated_data['identificador'])
+        if usuario and usuario.is_active and usuario.estado == 'activo':
             token = crear_token_recuperacion(usuario)
-            enviar_correo_recuperacion(usuario, token)
+            try:
+                enviar_correo_recuperacion(usuario, token)
+            except Exception:
+                # La respuesta no debe cambiar: revelaría que la cuenta existe.
+                logger.exception('No se pudo enviar el correo de recuperación (usuario %s)', usuario.pk)
 
+        # Misma respuesta exista o no la cuenta (RF-05).
         return Response({'mensaje': MENSAJE_GENERICO}, status=status.HTTP_200_OK)
 
 

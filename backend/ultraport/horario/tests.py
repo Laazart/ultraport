@@ -5,9 +5,14 @@ from rest_framework.test import APITestCase
 from usuarios.models import Rol, Usuario
 from usuarios.permissions import Roles
 from .models import NotificacionInasistencia
+from .serializers import MENSAJE_ADJUNTO_OBLIGATORIO
 
 URL = '/api/inasistencias/'
 MIS_AVISOS_URL = '/api/inasistencias/mis-avisos/'
+
+
+def _adjunto(nombre='licencia.pdf'):
+    return SimpleUploadedFile(nombre, b'%PDF-1.4', content_type='application/pdf')
 
 
 @override_settings(MEDIA_ROOT='test_media')
@@ -31,17 +36,16 @@ class NotificacionInasistenciaTests(APITestCase):
         self.client.force_authenticate(self.trabajador)
         resp = self.client.post(MIS_AVISOS_URL, {
             'motivo': 'Enfermedad', 'fecha_inicio': '2026-10-20', 'fecha_fin': '2026-10-22',
-            'estado': 'aprobado',
-        }, format='json')
+            'estado': 'aprobado', 'url_adjunto': _adjunto(),
+        }, format='multipart')
         self.assertEqual(resp.status_code, 201)
         self.assertEqual(resp.data['estado'], 'pendiente')
         self.assertEqual(resp.data['id_usuario'], self.trabajador.id_usuario)
 
     def test_crear_con_adjunto(self):
         self.client.force_authenticate(self.trabajador)
-        archivo = SimpleUploadedFile('licencia.pdf', b'%PDF-1.4', content_type='application/pdf')
         resp = self.client.post(MIS_AVISOS_URL, {
-            'motivo': 'Licencia médica', 'fecha_inicio': '2026-10-20', 'url_adjunto': archivo,
+            'motivo': 'Licencia médica', 'fecha_inicio': '2026-10-20', 'url_adjunto': _adjunto(),
         }, format='multipart')
         self.assertEqual(resp.status_code, 201)
         self.assertIn('/media/horario/inasistencias/', resp.data['url_adjunto'])
@@ -60,12 +64,35 @@ class NotificacionInasistenciaTests(APITestCase):
         self.assertEqual(resp.status_code, 400)
         self.assertIn('motivo', resp.data)
         self.assertIn('fecha_inicio', resp.data)
+        self.assertIn('url_adjunto', resp.data)
+
+    def test_adjunto_obligatorio(self):
+        self.client.force_authenticate(self.trabajador)
+        for formato in ('multipart', 'json'):
+            with self.subTest(formato=formato):
+                resp = self.client.post(MIS_AVISOS_URL, {
+                    'motivo': 'Enfermedad', 'fecha_inicio': '2026-10-20',
+                }, format=formato)
+                self.assertEqual(resp.status_code, 400)
+                self.assertEqual(resp.data['url_adjunto'], [MENSAJE_ADJUNTO_OBLIGATORIO])
+        self.assertFalse(NotificacionInasistencia.objects.exists())
+
+    def test_usuario_sale_del_token_y_no_del_body(self):
+        self.client.force_authenticate(self.trabajador)
+        resp = self.client.post(MIS_AVISOS_URL, {
+            'motivo': 'Enfermedad', 'fecha_inicio': '2026-10-20', 'url_adjunto': _adjunto(),
+            'id_usuario': self.otro.id_usuario,
+        }, format='multipart')
+        self.assertEqual(resp.status_code, 201)
+        self.assertEqual(resp.data['id_usuario'], self.trabajador.id_usuario)
+        self.assertEqual(resp.data['usuario']['rut'], self.trabajador.rut)
 
     def test_fecha_fin_anterior_a_inicio(self):
         self.client.force_authenticate(self.trabajador)
         resp = self.client.post(MIS_AVISOS_URL, {
             'motivo': 'x', 'fecha_inicio': '2026-10-20', 'fecha_fin': '2026-10-19',
-        }, format='json')
+            'url_adjunto': _adjunto(),
+        }, format='multipart')
         self.assertEqual(resp.status_code, 400)
         self.assertIn('fecha_fin', resp.data)
 

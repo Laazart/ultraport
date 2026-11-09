@@ -4,11 +4,39 @@ from datetime import timedelta
 
 import resend
 from django.conf import settings
+from django.core.exceptions import ValidationError
+from django.db.models import Value
+from django.db.models.functions import Replace, Upper
 from django.utils import timezone
 
 from .models import TokenRecuperacion, Usuario
+from .validar_rut import normalizar_rut
 
 resend.api_key = settings.RESEND_API_KEY
+
+
+def buscar_usuario_por_identificador(identificador):
+    """Devuelve el usuario cuyo correo o RUT coincide, o None.
+
+    El RUT se normaliza (sin puntos, con guion, DV en mayúscula) y se compara
+    contra el RUT guardado sin puntos y en mayúsculas, para encontrar también
+    registros guardados con otro formato.
+    """
+    identificador = (identificador or '').strip()
+    if not identificador:
+        return None
+    if '@' in identificador:
+        return Usuario.objects.filter(correo__iexact=identificador).first()
+    try:
+        rut = normalizar_rut(identificador)
+    except ValidationError:
+        return None
+    return (
+        Usuario.objects
+        .annotate(rut_normalizado=Replace(Upper('rut'), Value('.'), Value('')))
+        .filter(rut_normalizado=rut)
+        .first()
+    )
 
 
 def _hash(token):

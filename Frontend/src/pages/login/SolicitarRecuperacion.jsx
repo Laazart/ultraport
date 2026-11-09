@@ -4,7 +4,7 @@ import authService from '../../services/auth';
 import './login.css'; 
 
 function SolicitarRecuperacion() {
-  const [correo, setCorreo] = useState('');
+  const [identificador, setIdentificador] = useState('');
   const [mensaje, setMensaje] = useState('');
   const [error, setError] = useState('');
   const [cargando, setCargando] = useState(false);
@@ -18,7 +18,7 @@ function SolicitarRecuperacion() {
     setCargando(true);
     
     try {
-      const response = await authService.solicitarRecuperacion(correo);
+      const response = await authService.solicitarRecuperacion(identificador);
       setMensaje(response.mensaje);
     } catch (err) {
       setError(err.response?.data?.error || 'Ocurrió un error al procesar la solicitud.');
@@ -43,7 +43,7 @@ function SolicitarRecuperacion() {
           </div>
           
           <p className="subtitle text-white text-center mb-4">
-            Ingrese su correo electrónico para recibir un enlace de recuperación.
+            Ingrese su RUT o correo electrónico para recibir un enlace de recuperación.
           </p>
 
           {error && <div className="alert alert-danger p-2 mb-3">{error}</div>}
@@ -52,12 +52,12 @@ function SolicitarRecuperacion() {
           <form onSubmit={handleSolicitar}>
             <div className="mb-3">
               <input 
-                type="email" 
+                type="text" 
                 className="form-control form-control-lg"
-                placeholder="Correo electrónico" 
+                placeholder="RUT o correo electrónico" 
                 required 
-                value={correo}
-                onChange={(e) => setCorreo(e.target.value)}
+                value={identificador}
+                onChange={(e) => setIdentificador(e.target.value)}
                 disabled={cargando}
               />
             </div>
