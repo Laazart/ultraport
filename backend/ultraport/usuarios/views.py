@@ -85,7 +85,8 @@ class UsuarioViewSet(viewsets.ModelViewSet):
     def destroy(self, request, *args, **kwargs):
         usuario = self.get_object()
         usuario.estado = 'inactivo'
-        usuario.save(update_fields=['estado'])
+        usuario.is_active = False
+        usuario.save(update_fields=['estado', 'is_active'])
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 class RolViewSet(viewsets.ModelViewSet ):

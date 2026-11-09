@@ -5,7 +5,7 @@ from django.core.validators import RegexValidator
 from django.db.models.signals import post_migrate
 from django.dispatch import receiver
 from django.utils import timezone
-
+from .validar_rut import validar_rut_modulo_11, normalizar_rut
 class Rol(models.Model):
 
     id_rol = models.AutoField(primary_key=True)
@@ -105,7 +105,11 @@ class Usuario(AbstractBaseUser, PermissionsMixin):
 
     USERNAME_FIELD = 'correo' 
     REQUIRED_FIELDS = ['rut', 'nombres', 'apellidos']
-
+    def save(self, *args, **kwargs):
+        if self.rut:
+            validar_rut_modulo_11(self.rut)
+            self.rut = normalizar_rut(self.rut)
+        super().save(*args, **kwargs)
     def __str__(self):
         return f'{self.nombres} {self.apellidos}'
 
