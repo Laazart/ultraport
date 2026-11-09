@@ -3,7 +3,8 @@ from .models import Usuario, Rol , Contrato, Puesto, UsuarioPuesto, TipoLicencia
 from rest_framework import serializers
 from django.contrib.auth.password_validation import validate_password
 from django.core.validators import RegexValidator 
-
+from .validar_rut import validar_rut_modulo_11, normalizar_rut
+from rest_framework.exceptions import AuthenticationFailed
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     @classmethod
     def get_token(cls, user):
@@ -12,7 +13,23 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         return token
 
     def validate(self, attrs):
+        identificador = (attrs.get(self.username_field) or '').strip()
+        if identificador and '@' not in identificador:
+            try:
+                validar_rut_modulo_11(identificador)
+                rut_canonico = normalizar_rut(identificador)
+                usuario = Usuario.objects.filter(rut=rut_canonico).first()
+                if usuario:
+                    attrs[self.username_field] = usuario.correo
+            except DjangoValidationError:
+                pass 
+
         data = super().validate(attrs)
+        if self.user.estado != 'activo' or not self.user.is_active:
+            raise AuthenticationFailed(
+                'No se encontró una cuenta activa con las credenciales indicadas.',
+                code='no_active_account',
+            )
         data.update({
             'usuario': {
                 'id_usuario': self.user.id_usuario,
@@ -22,12 +39,11 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
                 'correo': self.user.correo,
                 'telefono': self.user.telefono,
                 'estado': self.user.estado,
-                'rol': self.user.id_rol.nombre_rol if self.user.id_rol else None, 
-                'id_rol': self.user.id_rol_id, 
+                'rol': self.user.id_rol.nombre_rol if self.user.id_rol else None,
+                'id_rol': self.user.id_rol_id,
             }
         })
         return data
-
 class SolicitarRecuperacionSerializer(serializers.Serializer):
     correo = serializers.EmailField()
 
@@ -48,10 +64,25 @@ class UsuarioSerializer(serializers.ModelSerializer):
     class Meta:
         model = Usuario
         fields = ['id_usuario', 'rut', 'nombres', 'apellidos', 'correo','telefono', 'id_rol', 'id_contrato', 'estado', 'fecha_creacion', 'password',]
-        read_only_fields = ['id_usuario', 'fecha_creacion']# --- NUEVA VALIDACIÓN FUERTE ---
+        read_only_fields = ['id_usuario', 'fecha_creacion']
+    def validate_rut(self, value):
+        try:
+            validar_rut_modulo_11(value)
+        except DjangoValidationError as e:
+            raise serializers.ValidationError(e.messages)
+
+        rut_canonico = normalizar_rut(value)
+
+        existentes = Usuario.objects.filter(rut=rut_canonico)
+        if self.instance is not None:
+            existentes = existentes.exclude(pk=self.instance.pk)
+        if existentes.exists():
+            raise serializers.ValidationError('Ya existe un usuario con ese RUT.')
+
+        return rut_canonico
     def validate_id_rol(self, value):
         if value is not None:
-            roles_permitidos = [1, 2, 3] # 5: Admin, 6: Trabajador, 7: Planificador
+            roles_permitidos = [1, 2, 3] # 1: Admin, 3: Trabajador, 2: Encargado
             
             if value.id_rol not in roles_permitidos:
                 raise serializers.ValidationError("Violación de seguridad: El rol indicado no está permitido o no existe.")

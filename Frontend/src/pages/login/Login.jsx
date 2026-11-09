@@ -46,7 +46,7 @@ function Login() {
           <form onSubmit={handleLogin}>
             <div className="mb-3">
               <input 
-                type="email" 
+                type="text" 
                 className="form-control form-control-lg"
                 placeholder="Correo electronico" 
                 required 
