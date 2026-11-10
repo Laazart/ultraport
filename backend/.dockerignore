@@ -1,0 +1,11 @@
+venv/
+.venv/
+__pycache__/
+*.pyc
+data/
+db.sqlite3
+.env
+.git/
+.gitignore
+media/
+*.md
