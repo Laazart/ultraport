@@ -5,10 +5,24 @@ from django.db.models import Q
 
 from usuarios.models import Usuario, UsuarioPuesto, UsuarioLicencia, UsuarioMaquinaria
 from usuarios.permissions import Roles
-from .models import Asignacion, ESTADOS_ACTIVOS
+from .models import Asignacion, ESTADOS_ACTIVOS, NotificacionInasistencia
 
 VENTANA_RACHA_DIAS = 14
-
+def tiene_inasistencia_aprobada(usuario, fecha):
+    """True si el usuario tiene una inasistencia aprobada que cubre la fecha."""
+    return (
+        NotificacionInasistencia.objects
+        .filter(
+            id_usuario=usuario,
+            estado=NotificacionInasistencia.APROBADO,
+            fecha_inicio__lte=fecha,
+        )
+        .filter(
+            Q(fecha_fin__gte=fecha)
+            | Q(fecha_fin__isnull=True, fecha_inicio=fecha)
+        )
+        .exists()
+    )
 def asignaciones_activas(usuario, desde, hasta, excluir_id=None):
     qs = (
         Asignacion.objects
@@ -93,7 +107,8 @@ def validar_asignacion(usuario, turno, excluir_id=None):
     contrato = usuario.id_contrato
     if contrato is None:
         return ['El trabajador no tiene contrato asignado.']
-
+    if tiene_inasistencia_aprobada(usuario, fecha):
+        return ['Tiene una inasistencia aprobada que cubre esta fecha.']
     errores = validar_competencias(usuario, turno)
     if errores:
         return errores
