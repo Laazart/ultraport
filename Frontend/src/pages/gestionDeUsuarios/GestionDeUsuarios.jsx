@@ -136,17 +136,18 @@ const GestionDeUsuarios = () => {
                 <th>Nombre Completo</th>
                 <th>Correo</th>
                 <th>Telefono</th>
+                <th>Contrato</th>
                 <th>Estado</th>
                 <th className="text-center">Acciones</th>
               </tr>
             </thead>
             <tbody>
               {cargando ? (
-                <tr><td colSpan="6" className="text-center py-4 text-light">Cargando usuarios...</td></tr>
+                <tr><td colSpan="7" className="text-center py-4 text-light">Cargando usuarios...</td></tr>
               ) : listaUsuarios.length === 0 ? (
-                <tr><td colSpan="6" className="text-center py-4 text-muted">No hay usuarios registrados.</td></tr>
+                <tr><td colSpan="7" className="text-center py-4 text-muted">No hay usuarios registrados.</td></tr>
               ) : usuariosFiltrados.length === 0 ? (
-                <tr><td colSpan="6" className="text-center py-4 text-muted">No se encontraron usuarios.</td></tr>
+                <tr><td colSpan="7" className="text-center py-4 text-muted">No se encontraron usuarios.</td></tr>
               ) : (
                 usuariosFiltrados.map((u) => (
                   <tr key={u.id_usuario}>
@@ -154,6 +155,7 @@ const GestionDeUsuarios = () => {
                     <td className="text-light">{u.nombres} {u.apellidos}</td>
                     <td><span className="rol-text">{u.correo}</span></td>
                     <td><span className="fw-medium">{u.telefono}</span></td>
+                    <td>{u.tipo_contrato || <span className="text-muted">Sin contrato</span>}</td>
                     <td>
                       <span className={`badge rounded-pill up-status-badge ${u.estado === 'activo' ? 'active' : 'inactive'}`}>
                         {u.estado}

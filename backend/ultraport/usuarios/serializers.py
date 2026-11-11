@@ -1,11 +1,28 @@
-from rest_framework_simplejwt.serializers import TokenObtainPairSerializer 
-from .models import Usuario, Rol , Contrato, Puesto, UsuarioPuesto, TipoLicencia, UsuarioLicencia, Maquinaria, UsuarioMaquinaria
-from rest_framework import serializers
-from django.contrib.auth.password_validation import validate_password
-from django.core.validators import RegexValidator 
-from .validar_rut import validar_rut_modulo_11, normalizar_rut
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from rest_framework_simplejwt.settings import api_settings as jwt_settings
 from rest_framework.exceptions import AuthenticationFailed
+from .models import Usuario, Rol , Contrato, Puesto, UsuarioPuesto, TipoLicencia, UsuarioLicencia, Maquinaria, UsuarioMaquinaria
+from .services import buscar_usuario_por_identificador
+from rest_framework import serializers
+from django.contrib.auth import authenticate
+from django.contrib.auth.models import update_last_login
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError as DjangoValidationError
+from django.core.validators import RegexValidator
+from .validar_rut import validar_rut_modulo_11, normalizar_rut
+
+MENSAJE_CREDENCIALES_INVALIDAS = 'RUT o contraseña incorrectos'
+
+
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+    """Login con RUT o correo + contraseña (RF-01) y entrega de JWT (RF-04)."""
+
+    # Campo de entrada: acepta RUT (con o sin puntos) o correo.
+    username_field = 'identificador'
+    # Mismo mensaje y código para credenciales malas y cuentas bloqueadas:
+    # no se revela si la cuenta existe ni su estado (RF-02).
+    default_error_messages = {'no_active_account': MENSAJE_CREDENCIALES_INVALIDAS}
+
     @classmethod
     def get_token(cls, user):
         token = super().get_token(user)
@@ -13,23 +30,23 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         return token
 
     def validate(self, attrs):
-        identificador = (attrs.get(self.username_field) or '').strip()
-        if identificador and '@' not in identificador:
-            try:
-                validar_rut_modulo_11(identificador)
-                rut_canonico = normalizar_rut(identificador)
-                usuario = Usuario.objects.filter(rut=rut_canonico).first()
-                if usuario:
-                    attrs[self.username_field] = usuario.correo
-            except DjangoValidationError:
-                pass 
-
-        data = super().validate(attrs)
-        if self.user.estado != 'activo' or not self.user.is_active:
+        identificador = attrs[self.username_field]
+        encontrado = buscar_usuario_por_identificador(identificador)
+        # Se autentica siempre (aunque no exista) para no revelar por tiempo
+        # de respuesta si la cuenta existe.
+        self.user = authenticate(
+            request=self.context.get('request'),
+            correo=encontrado.correo if encontrado else identificador,
+            password=attrs['password'],
+        )
+        if not jwt_settings.USER_AUTHENTICATION_RULE(self.user) or self.user.estado != 'activo':
             raise AuthenticationFailed(
-                'No se encontró una cuenta activa con las credenciales indicadas.',
-                code='no_active_account',
-            )
+                self.error_messages['no_active_account'], 'no_active_account')
+
+        refresh = self.get_token(self.user)
+        data = {'refresh': str(refresh), 'access': str(refresh.access_token)}
+        if jwt_settings.UPDATE_LAST_LOGIN:
+            update_last_login(None, self.user)
         data.update({
             'usuario': {
                 'id_usuario': self.user.id_usuario,
@@ -45,7 +62,7 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         })
         return data
 class SolicitarRecuperacionSerializer(serializers.Serializer):
-    correo = serializers.EmailField()
+    identificador = serializers.CharField(help_text='RUT o correo de la cuenta.')
 
 
 class RestablecerPasswordSerializer(serializers.Serializer):
@@ -60,11 +77,13 @@ class UsuarioSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=False, min_length=8)
     regex_celular_chile = RegexValidator(regex=r'^9\d{8}$', message="El número de celular debe tener 9 dígitos y comenzar con 9 (ej: 947492086).")
     telefono= serializers.CharField(max_length=9, validators=[regex_celular_chile],help_text="Número celular de Chile (9 dígitos, comenzando con 9)")
+    tipo_contrato = serializers.SerializerMethodField(help_text='Tipo de contrato legible (RF-22), o null si no tiene.')
 
     class Meta:
         model = Usuario
-        fields = ['id_usuario', 'rut', 'nombres', 'apellidos', 'correo','telefono', 'id_rol', 'id_contrato', 'estado', 'fecha_creacion', 'password',]
+        fields = ['id_usuario', 'rut', 'nombres', 'apellidos', 'correo','telefono', 'id_rol', 'id_contrato', 'tipo_contrato', 'estado', 'fecha_creacion', 'password',]
         read_only_fields = ['id_usuario', 'fecha_creacion']
+
     def validate_rut(self, value):
         try:
             validar_rut_modulo_11(value)
@@ -80,6 +99,7 @@ class UsuarioSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError('Ya existe un usuario con ese RUT.')
 
         return rut_canonico
+
     def validate_id_rol(self, value):
         if value is not None:
             roles_permitidos = [1, 2, 3] # 1: Admin, 3: Trabajador, 2: Encargado
@@ -87,6 +107,9 @@ class UsuarioSerializer(serializers.ModelSerializer):
             if value.id_rol not in roles_permitidos:
                 raise serializers.ValidationError("Violación de seguridad: El rol indicado no está permitido o no existe.")
         return value
+    def get_tipo_contrato(self, obj):
+        return obj.id_contrato.get_tipo_display() if obj.id_contrato else None
+
     def validate(self, attrs):
         if self.instance is None and not attrs.get('password'):
             raise serializers.ValidationError({'password': 'La contraseña es obligatoria.'})
@@ -101,6 +124,9 @@ class UsuarioSerializer(serializers.ModelSerializer):
         password = validated_data.pop('password', None)
         for attr, valor in validated_data.items():
             setattr(instance, attr, valor)
+        if 'estado' in validated_data:
+            # is_active sigue a estado en ambos sentidos (reactivar/desactivar).
+            instance.is_active = instance.estado == 'activo'
         if password:
             instance.set_password(password)
         instance.save()

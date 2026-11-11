@@ -3,9 +3,10 @@ import axios from 'axios';
 const API_URL = 'http://127.0.0.1:8000/api/';
 
 const authService = {
-  login: async (correo, password) => {
+  // identificador: RUT (con o sin puntos) o correo.
+  login: async (identificador, password) => {
     try {
-      const response = await axios.post(`${API_URL}login/`, { correo, password });
+      const response = await axios.post(`${API_URL}login/`, { identificador, password });
       
       localStorage.setItem('access_token', response.data.access);
       localStorage.setItem('refresh_token', response.data.refresh);
@@ -51,8 +52,8 @@ const authService = {
     if (userStr) return JSON.parse(userStr);
     return null;
   },
-  solicitarRecuperacion: async (correo) => {
-    const response = await axios.post(`${API_URL}recuperar-password/`, { correo });
+  solicitarRecuperacion: async (identificador) => {
+    const response = await axios.post(`${API_URL}recuperar-password/`, { identificador });
     return response.data;
   },
   restablecerPassword: async (token, password) => {
