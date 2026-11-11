@@ -6,6 +6,7 @@ from usuarios.models import Usuario
 
 EXTENSIONES_ADJUNTO = ('.jpg', '.jpeg', '.png', '.pdf')
 TAMANO_MAX_ADJUNTO = 5 * 1024 * 1024
+MENSAJE_ADJUNTO_OBLIGATORIO = 'Debes adjuntar un respaldo (JPG, PNG o PDF).'
 
 
 class NotificacionInasistenciaSerializer(serializers.ModelSerializer):
@@ -18,6 +19,19 @@ class NotificacionInasistenciaSerializer(serializers.ModelSerializer):
             'fecha_inicio', 'fecha_fin', 'url_adjunto', 'estado', 'fecha_registro',
         ]
         read_only_fields = ['id_notificacion', 'id_usuario', 'estado', 'fecha_registro']
+        # RF-08: el respaldo es obligatorio al crear. El modelo sigue admitiendo
+        # null para no invalidar avisos antiguos.
+        extra_kwargs = {
+            'url_adjunto': {
+                'required': True,
+                'allow_null': False,
+                'error_messages': {
+                    'required': MENSAJE_ADJUNTO_OBLIGATORIO,
+                    'null': MENSAJE_ADJUNTO_OBLIGATORIO,
+                    'empty': MENSAJE_ADJUNTO_OBLIGATORIO,
+                },
+            },
+        }
 
     def get_usuario(self, obj):
         u = obj.id_usuario
@@ -32,8 +46,6 @@ class NotificacionInasistenciaSerializer(serializers.ModelSerializer):
         return value.strip()
 
     def validate_url_adjunto(self, archivo):
-        if archivo is None:
-            return archivo
         if not archivo.name.lower().endswith(EXTENSIONES_ADJUNTO):
             raise serializers.ValidationError('Solo se permiten archivos JPG, PNG o PDF.')
         if archivo.size > TAMANO_MAX_ADJUNTO:

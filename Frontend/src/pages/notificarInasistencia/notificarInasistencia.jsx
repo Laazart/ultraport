@@ -51,7 +51,7 @@ const LinkAdjunto = ({ url }) =>
     <span className="ina-muted">—</span>
   );
 
-const VistaTrabajador = () => {
+const VistaTrabajador = ({ usuario }) => {
   const [form, setForm] = useState(FORM_INICIAL);
   const [inputKey, setInputKey] = useState(0);
   const [avisos, setAvisos] = useState([]);
@@ -81,8 +81,8 @@ const VistaTrabajador = () => {
     setError('');
     setMensaje('');
 
-    if (!form.motivo.trim() || !form.fecha_inicio) {
-      setError('Completa el motivo y la fecha de inicio.');
+    if (!form.motivo.trim() || !form.fecha_inicio || !form.adjunto) {
+      setError('Completa el motivo, la fecha de inicio y adjunta un respaldo (JPG, PNG o PDF).');
       return;
     }
     if (form.fecha_fin && form.fecha_fin < form.fecha_inicio) {
@@ -111,6 +111,16 @@ const VistaTrabajador = () => {
 
         {error && <div className="alert alert-danger p-2">{error}</div>}
         {mensaje && <div className="alert alert-success p-2">{mensaje}</div>}
+
+        <label className="ina-label" htmlFor="rut">RUT</label>
+        <input
+          id="rut"
+          type="text"
+          className="form-control ina-input"
+          value={usuario.rut}
+          readOnly
+          disabled
+        />
 
         <label className="ina-label" htmlFor="motivo">Motivo *</label>
         <textarea
@@ -155,7 +165,7 @@ const VistaTrabajador = () => {
           </div>
         </div>
 
-        <label className="ina-label" htmlFor="adjunto">Respaldo (JPG, PNG o PDF, máx. 5 MB)</label>
+        <label className="ina-label" htmlFor="adjunto">Respaldo * (JPG, PNG o PDF, máx. 5 MB)</label>
         <input
           key={inputKey}
           id="adjunto"
@@ -165,6 +175,7 @@ const VistaTrabajador = () => {
           className="form-control ina-input"
           onChange={handleChange}
           disabled={enviando}
+          required
         />
 
         <button type="submit" className="ina-btn" disabled={enviando}>
@@ -394,7 +405,7 @@ const NotificarInasistencia = () => {
         </p>
       </div>
 
-      {usuario && (esEncargado ? <VistaEncargado /> : <VistaTrabajador />)}
+      {usuario && (esEncargado ? <VistaEncargado /> : <VistaTrabajador usuario={usuario} />)}
     </div>
   );
 };
