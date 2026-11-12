@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import authService from '../../services/auth';
-import './Home.css';
+import './home.css';
 
 const ROLES = {
   ADMINISTRADOR: 1,

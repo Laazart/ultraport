@@ -4,7 +4,7 @@ import authService from '../../services/auth';
 import TextoRol from '../../components/TextoRol';
 import horarioVistaService from '../../services/horarioVista';
 import horarioService from '../../services/horario';
-import '../home/Home.css';
+import '../home/home.css';
 import './visualizacionHorario.css';
 
 const RUTA_HOME = '/home';

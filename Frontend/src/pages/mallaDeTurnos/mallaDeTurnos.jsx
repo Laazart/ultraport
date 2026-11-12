@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import authService from '../../services/auth';
 import TextoRol from '../../components/TextoRol';
-import '../home/Home.css';
+import '../home/home.css';
 
 const RUTA_HOME = '/home';
 
