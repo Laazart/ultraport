@@ -1,7 +1,8 @@
 import axios from 'axios';
 import authService from './auth';
+import { API_BASE } from './api';
 
-const API_URL = 'http://127.0.0.1:8000/api/inasistencias/';
+const API_URL = `${API_BASE}inasistencias/`;
 const MIS_AVISOS_URL = `${API_URL}mis-avisos/`;
 
 const authHeaders = () => ({

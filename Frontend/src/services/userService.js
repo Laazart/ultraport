@@ -1,9 +1,8 @@
 import axios from 'axios';
 import authService from './auth';
+import { API_BASE } from './api';
 
-const API_URL = 'http://127.0.0.1:8000/api/usuarios/';
-
-// Función auxiliar para obtener los headers con el token
+const API_URL = `${API_BASE}usuarios/`;
 const getAuthHeaders = () => {
   const token = authService.getAccessToken();
 
@@ -47,7 +46,7 @@ const userService = {
   }
 };
 
-const CONTRATOS_URL = 'http://127.0.0.1:8000/api/contratos/';
+const CONTRATOS_URL = `${API_BASE}contratos/`;
 const contratoService = { 
 
   getContratos: async () => {
@@ -56,7 +55,7 @@ const contratoService = {
   },
 };
 
-const ROLES_URL = 'http://127.0.0.1:8000/api/roles/';
+const ROLES_URL = `${API_BASE}roles/`;
 const rolService = { 
 
   getRoles: async () => {
