@@ -1,6 +1,7 @@
 import axios from 'axios';
+import { API_BASE } from './api';
 
-const API_URL = 'http://127.0.0.1:8000/api/';
+const API_URL = API_BASE;
 
 const authService = {
   login: async (correo, password) => {
