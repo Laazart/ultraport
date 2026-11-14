@@ -54,7 +54,6 @@ class LoginTests(APITestCase):
         self.assertEqual(resp.data['usuario']['correo'], 'k@test.cl')
 
     def test_login_encuentra_rut_guardado_con_puntos(self):
-        # save() ya normaliza; .update() simula un registro antiguo con puntos.
         usuario = crear_usuario('puntos@test.cl', '12345678-5')
         Usuario.objects.filter(pk=usuario.pk).update(rut='12.345.678-5')
         for rut in ('12345678-5', '12.345.678-5'):
@@ -85,8 +84,6 @@ class LoginTests(APITestCase):
 
 
 class NormalizacionRutTests(APITestCase):
-    """El RUT se guarda siempre en forma canónica (sin puntos, con guion, DV en mayúscula)."""
-
     def setUp(self):
         self.planificador = crear_usuario('plan@test.cl', '11111111-1', Roles.PLANIFICADOR)
         self.client.force_authenticate(self.planificador)
@@ -117,7 +114,6 @@ class NormalizacionRutTests(APITestCase):
 
 
 class DesactivarUsuarioTests(APITestCase):
-    """Desactivar sincroniza is_active con estado y bloquea el login con el mismo 401."""
 
     def test_desactivar_bloquea_login(self):
         planificador = crear_usuario('plan@test.cl', '11111111-1', Roles.PLANIFICADOR)
@@ -166,7 +162,6 @@ class DesactivarUsuarioTests(APITestCase):
 
 @patch('usuarios.views.enviar_correo_recuperacion')
 class SolicitarRecuperacionTests(APITestCase):
-    """RF-05 y RF-06."""
 
     def setUp(self):
         self.usuario = crear_usuario('trabajador@test.cl', '11111111-1')
@@ -211,8 +206,6 @@ class SolicitarRecuperacionTests(APITestCase):
 
 
 class ListadoUsuariosTests(APITestCase):
-    """RF-22: el listado incluye el tipo de contrato."""
-
     def setUp(self):
         contrato = Contrato.objects.create(
             tipo='cppt', turno_habitual='rotativo', horas_semanales_pactadas=45,
