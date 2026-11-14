@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import authService from '../../services/auth';
 import TextoRol from '../../components/TextoRol';
 import inasistenciasService from '../../services/inasistencias';
-import '../home/Home.css';
+import '../home/home.css';
 import './notificarInasistencia.css';
 
 const RUTA_HOME = '/home';
