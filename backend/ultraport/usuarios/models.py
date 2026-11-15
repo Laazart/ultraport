@@ -5,7 +5,6 @@ from django.core.validators import RegexValidator
 from django.db.models.signals import post_migrate
 from django.dispatch import receiver
 from django.utils import timezone
-from .validar_rut import validar_rut_modulo_11, normalizar_rut
 class Rol(models.Model):
 
     id_rol = models.AutoField(primary_key=True)
