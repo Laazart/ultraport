@@ -6,6 +6,7 @@ from rest_framework.test import APITestCase
 
 from usuarios.models import Maquinaria, Puesto, Rol, Usuario
 from usuarios.permissions import Roles
+from usuarios.validar_rut import calcular_digito_verificador
 from .models import Area, Asignacion, BloqueTurno, Malla, Turno
 
 URL = '/api/horario/dia/'
@@ -13,6 +14,11 @@ FECHA = date(2026, 10, 24)
 CAMPOS_PRIVADOS = {'rut', 'correo', 'telefono', 'contrato', 'id_contrato', 'id_usuario'}
 
 _ruts = count(90000000)
+
+
+def _rut_valido():
+    cuerpo = str(next(_ruts))
+    return f'{cuerpo}-{calcular_digito_verificador(cuerpo)}'
 
 
 def _claves(dato):
@@ -63,7 +69,7 @@ class HorarioDiaTests(APITestCase):
 
     def _usuario(self, nombre, rol=None, **extra):
         return Usuario.objects.create_user(
-            f'{nombre}@test.cl', f'{next(_ruts)}-0', nombre.capitalize(), 'Pérez', 'clave-segura-123',
+            f'{nombre}@test.cl', _rut_valido(), nombre.capitalize(), 'Pérez', 'clave-segura-123',
             id_rol=Rol.objects.get(pk=rol) if rol else None, **extra)
 
     def _turno(self, bloque, puesto, area=None, maquina=None):
