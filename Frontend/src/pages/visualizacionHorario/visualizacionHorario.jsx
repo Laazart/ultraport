@@ -44,7 +44,7 @@ const mensajeError = (err, porDefecto) => {
 };
 
 const bloqueInicial = (data) => {
-  if (data.mi_turno) return data.mi_turno.id_bloque;
+  if (data.mis_turnos?.length) return data.mis_turnos[0].id_bloque;
   return (data.bloques.find((b) => b.total > 0) || data.bloques[0])?.id_bloque ?? null;
 };
 
@@ -55,20 +55,29 @@ const EstadoVacio = ({ icono, texto }) => (
   </div>
 );
 
-const TarjetaMiTurno = ({ turno, fecha, esHoy }) => (
+const tituloMisTurnos = (cantidad, fecha, esHoy) => {
+  const base = cantidad > 1 ? 'Tus turnos' : 'Tu turno';
+  return esHoy ? `${base} de hoy` : `${base} del ${formatearFecha(fecha)}`;
+};
+
+const TarjetaMisTurnos = ({ turnos, fecha, esHoy }) => (
   <div className="hor-mi-turno">
     <div className="hor-mi-turno-titulo">
       <i className="bi bi-person-badge"></i>
-      {esHoy ? 'Tu turno de hoy' : `Tu turno del ${formatearFecha(fecha)}`}
+      {tituloMisTurnos(turnos.length, fecha, esHoy)}
     </div>
-    <div className="hor-mi-turno-bloque">
-      {turno.orden}° turno · {rangoHorario(turno)}
-    </div>
-    <div className="hor-mi-turno-detalle">
-      <span><i className="bi bi-geo-alt"></i> {turno.area}</span>
-      <span><i className="bi bi-person-gear"></i> {turno.funcion}</span>
-      {turno.maquina && <span><i className="bi bi-truck"></i> {turno.maquina}</span>}
-    </div>
+    {turnos.map((turno) => (
+      <div key={`${turno.id_bloque}-${turno.area}-${turno.funcion}`} className="hor-mi-turno-item">
+        <div className="hor-mi-turno-bloque">
+          {turno.orden}° turno · {rangoHorario(turno)}
+        </div>
+        <div className="hor-mi-turno-detalle">
+          <span><i className="bi bi-geo-alt"></i> {turno.area}</span>
+          <span><i className="bi bi-person-gear"></i> {turno.funcion}</span>
+          {turno.maquina && <span><i className="bi bi-truck"></i> {turno.maquina}</span>}
+        </div>
+      </div>
+    ))}
   </div>
 );
 
@@ -233,7 +242,9 @@ const VistaDia = () => {
 
       {data && (
         <div className={cargando ? 'hor-cargando' : ''}>
-          {data.mi_turno && <TarjetaMiTurno turno={data.mi_turno} fecha={fecha} esHoy={fecha === hoy} />}
+          {data.mis_turnos?.length > 0 && (
+            <TarjetaMisTurnos turnos={data.mis_turnos} fecha={fecha} esHoy={fecha === hoy} />
+          )}
 
           {noPublicada && data.puede_editar && (
             <div className="hor-aviso">

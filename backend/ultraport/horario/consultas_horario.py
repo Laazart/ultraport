@@ -63,7 +63,7 @@ def horario_del_dia(fecha, usuario):
     es_trabajador = usuario.id_rol_id == Roles.TRABAJADOR
 
     filas_por_bloque = {bloque.id_bloque: {} for bloque in bloques}
-    mi_turno = None
+    mis_turnos = []
     for asignacion in _asignaciones_visibles(malla, puede_editar):
         turno = asignacion.id_turno
         bloque = turno.id_bloque
@@ -78,13 +78,15 @@ def horario_del_dia(fecha, usuario):
         }
         filas_por_bloque[bloque.id_bloque].setdefault(area, []).append(fila)
 
-        if fila['es_mio'] and es_trabajador and (mi_turno is None or bloque.orden_secuencia < mi_turno['orden']):
-            mi_turno = {
+        if fila['es_mio'] and es_trabajador:
+            mis_turnos.append({
                 **_datos_bloque(bloque),
                 'area': area,
                 'funcion': fila['funcion'],
                 'maquina': fila['maquina'],
-            }
+            })
+
+    mis_turnos.sort(key=lambda t: (t['orden'], _orden_area(t['area'])))
 
     return {
         'fecha': fecha,
@@ -92,7 +94,7 @@ def horario_del_dia(fecha, usuario):
         'malla': malla,
         'publicada': malla is not None and malla.estado == Malla.Estados.PUBLICADA,
         'puede_editar': puede_editar,
-        'mi_turno': mi_turno,
+        'mis_turnos': mis_turnos,
         'bloques': [
             {
                 **_datos_bloque(bloque),
