@@ -166,6 +166,9 @@
   transition: all 0.2s;
 }
 .btn-secondary:hover { background: rgba(126, 144, 168, 0.1); color: #FFF; }
+.btn-secondary:disabled,
+.btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn-secondary:disabled:hover { background: transparent; color: #C7D1DE; }
 
 .btn-danger {
   background: #E2574C; border: none; color: #FFF;

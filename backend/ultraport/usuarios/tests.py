@@ -6,6 +6,7 @@ from rest_framework.test import APITestCase
 from .models import Contrato, Rol, Usuario
 from .permissions import Roles
 from .serializers import MENSAJE_CREDENCIALES_INVALIDAS
+from .validar_rut import calcular_digito_verificador
 from .views import MENSAJE_GENERICO
 
 LOGIN_URL = '/api/login/'
@@ -61,6 +62,13 @@ class LoginTests(APITestCase):
                 resp = self._login(rut)
                 self.assertEqual(resp.status_code, 200)
                 self.assertEqual(resp.data['usuario']['correo'], 'puntos@test.cl')
+
+    def test_texto_del_mensaje_de_rechazo(self):
+        # El frontend muestra este texto tal cual; cambiarlo debe ser deliberado.
+        self.assertEqual(MENSAJE_CREDENCIALES_INVALIDAS, 'RUT, correo o contraseña incorrectos')
+        resp = self._login('trabajador@test.cl', 'otra-clave-999')
+        self.assertEqual(resp.status_code, 401)
+        self.assertEqual(resp.data['detail'], 'RUT, correo o contraseña incorrectos')
 
     def test_rechazos_responden_igual(self):
         crear_usuario('inactivo@test.cl', '22222222-2', estado='inactivo')
@@ -218,7 +226,7 @@ class ListadoUsuariosTests(APITestCase):
         self.client.force_authenticate(self.planificador)
         resp = self.client.get(USUARIOS_URL)
         self.assertEqual(resp.status_code, 200)
-        por_correo = {u['correo']: u for u in resp.data}
+        por_correo = {u['correo']: u for u in resp.data['results']}
         self.assertEqual(por_correo['cppt@test.cl']['tipo_contrato'], 'CPPT')
         self.assertIsNone(por_correo['sin@test.cl']['tipo_contrato'])
         self.assertIn('id_contrato', por_correo['cppt@test.cl'])
@@ -234,3 +242,92 @@ class ListadoUsuariosTests(APITestCase):
     def test_trabajador_no_ve_el_listado(self):
         self.client.force_authenticate(self.con_contrato)
         self.assertEqual(self.client.get(USUARIOS_URL).status_code, 403)
+
+
+def rut_valido(cuerpo):
+    cuerpo = str(cuerpo)
+    return f'{cuerpo}-{calcular_digito_verificador(cuerpo)}'
+
+
+class PaginacionUsuariosTests(APITestCase):
+    """Listado paginado (20 por página) con búsqueda por nombre o RUT."""
+
+    TOTAL = 45  # planificador + 44 trabajadores; con Ana son 46: páginas de 20, 20 y 6
+
+    def setUp(self):
+        self.planificador = crear_usuario('plan@test.cl', '11111111-1', Roles.PLANIFICADOR)
+        rol = Rol.objects.get(pk=Roles.TRABAJADOR)
+        for i in range(self.TOTAL - 1):
+            # Sin contraseña (no se calcula hash): mucho más rápido.
+            Usuario.objects.create_user(
+                f'usuario{i:02d}@test.cl', rut_valido(20000000 + i),
+                f'Nombre{i:02d}', 'Apellido', id_rol=rol)
+        Usuario.objects.create_user(
+            'ana@test.cl', '12345678-5', 'Ana María', 'Soto Rojas', id_rol=rol)
+        self.client.force_authenticate(self.planificador)
+
+    def _listar(self, **params):
+        return self.client.get(USUARIOS_URL, params)
+
+    def test_primera_pagina_trae_20_y_metadatos(self):
+        resp = self._listar()
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.data['count'], self.TOTAL + 1)
+        self.assertEqual(len(resp.data['results']), 20)
+        self.assertEqual(resp.data['pagina'], 1)
+        self.assertEqual(resp.data['total_paginas'], 3)
+        self.assertIsNone(resp.data['previous'])
+        self.assertIsNotNone(resp.data['next'])
+
+    def test_ultima_pagina_y_recorrido_sin_repetidos(self):
+        vistos = []
+        for pagina in (1, 2, 3):
+            resp = self._listar(page=pagina)
+            self.assertEqual(resp.status_code, 200)
+            self.assertEqual(resp.data['pagina'], pagina)
+            vistos += [u['id_usuario'] for u in resp.data['results']]
+        self.assertEqual(len(resp.data['results']), 6)
+        self.assertIsNone(resp.data['next'])
+        self.assertEqual(len(vistos), self.TOTAL + 1)
+        self.assertEqual(len(set(vistos)), self.TOTAL + 1)
+
+    def test_pagina_fuera_de_rango_es_404(self):
+        self.assertEqual(self._listar(page=4).status_code, 404)
+
+    def test_busqueda_por_nombre_parcial_y_completo(self):
+        for termino in ('ana', 'ANA MARÍA', 'ana maría soto', 'rojas'):
+            with self.subTest(termino=termino):
+                resp = self._listar(search=termino)
+                self.assertEqual(resp.status_code, 200)
+                self.assertEqual(resp.data['count'], 1)
+                self.assertEqual(resp.data['results'][0]['correo'], 'ana@test.cl')
+
+    def test_busqueda_por_rut_con_o_sin_puntos(self):
+        for termino in ('12345678-5', '12.345.678-5', '12.345', '345678'):
+            with self.subTest(termino=termino):
+                resp = self._listar(search=termino)
+                self.assertEqual(resp.data['count'], 1)
+                self.assertEqual(resp.data['results'][0]['rut'], '12345678-5')
+
+    def test_busqueda_se_pagina(self):
+        # 'Nombre' coincide con los 44 trabajadores generados.
+        resp = self._listar(search='nombre')
+        self.assertEqual(resp.data['count'], self.TOTAL - 1)
+        self.assertEqual(resp.data['total_paginas'], 3)
+        self.assertEqual(len(resp.data['results']), 20)
+        resp = self._listar(search='nombre', page=3)
+        self.assertEqual(len(resp.data['results']), 4)
+        self.assertTrue(all('Nombre' in u['nombres'] for u in resp.data['results']))
+
+    def test_busqueda_sin_resultados(self):
+        resp = self._listar(search='no-existe-nadie')
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.data['count'], 0)
+        self.assertEqual(resp.data['results'], [])
+        self.assertEqual(resp.data['total_paginas'], 1)
+
+    def test_detalle_no_se_pagina_ni_filtra(self):
+        ana = Usuario.objects.get(correo='ana@test.cl')
+        resp = self.client.get(f'{USUARIOS_URL}{ana.pk}/', {'search': 'otro'})
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.data['correo'], 'ana@test.cl')

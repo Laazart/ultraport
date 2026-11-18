@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import authService from '../../services/auth';
+import { esTimeout, MENSAJE_TIMEOUT } from '../../services/api';
 import './login.css'; 
 
 function SolicitarRecuperacion() {
@@ -21,7 +22,7 @@ function SolicitarRecuperacion() {
       const response = await authService.solicitarRecuperacion(identificador);
       setMensaje(response.mensaje);
     } catch (err) {
-      setError(err.response?.data?.error || 'Ocurrió un error al procesar la solicitud.');
+      setError(esTimeout(err) ? MENSAJE_TIMEOUT : err.response?.data?.error || 'Ocurrió un error al procesar la solicitud.');
     } finally {
       setCargando(false);
     }

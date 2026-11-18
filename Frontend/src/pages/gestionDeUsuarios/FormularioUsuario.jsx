@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import userService, { contratoService } from '../../services/userService';
 import TextoRol from '../../components/TextoRol';
+import BotonCargando from '../../components/BotonCargando';
+import { esTimeout, MENSAJE_TIMEOUT } from '../../services/api';
 import './GestionDeUsuarios.css'; 
 import { validarRut } from '../../services/tools'
 
@@ -23,7 +25,7 @@ const FormularioUsuario = () => {
         setContratos(lista);
       } catch (error) {
         console.error('Error al cargar contratos:', error.response?.data || error);
-        setError('No se pudieron cargar los contratos.');
+        setError(esTimeout(error) ? MENSAJE_TIMEOUT : 'No se pudieron cargar los contratos.');
       }
     };
     cargarContratos();
@@ -43,6 +45,7 @@ const FormularioUsuario = () => {
   
   const [error, setError] = useState(null);
   const [cargando, setCargando] = useState(esModoEdicion); 
+  const [guardando, setGuardando] = useState(false);
 
   useEffect(() => {
     if (esModoEdicion) {
@@ -66,7 +69,7 @@ const FormularioUsuario = () => {
       });
     } catch (error) {
       console.error("Error al cargar el usuario:", error);
-      setError("No se pudo cargar la información del usuario.");
+      setError(esTimeout(error) ? MENSAJE_TIMEOUT : "No se pudo cargar la información del usuario.");
     } finally {
       setCargando(false);
     }
@@ -90,6 +93,7 @@ const FormularioUsuario = () => {
     }
     if (datosAEnviar.id_rol === '') datosAEnviar.id_rol = null;
 
+    setGuardando(true);
     try {
       if (esModoEdicion) {
         await userService.actualizarUsuario(id, datosAEnviar);
@@ -101,10 +105,16 @@ const FormularioUsuario = () => {
       navigate('/usuarios');
     } catch (error) {
       console.error("Error al guardar:", error.response?.data);
-      const errorMsg = error.response?.data 
-        ? Object.values(error.response.data).flat().join(' ') 
-        : "Hubo un error al procesar la solicitud. Revisa los datos.";
+      let errorMsg;
+      if (esTimeout(error)) {
+        errorMsg = MENSAJE_TIMEOUT;
+      } else if (error.response?.data) {
+        errorMsg = Object.values(error.response.data).flat().join(' ');
+      } else {
+        errorMsg = "Hubo un error al procesar la solicitud. Revisa los datos.";
+      }
       setError(errorMsg);
+      setGuardando(false);
     }
   };
 
@@ -303,9 +313,14 @@ const FormularioUsuario = () => {
                 <button type="button" onClick={() => navigate('/usuarios')} className="btn-secondary">
                   Cancelar
                 </button>
-                <button type="submit" className="btn-primary">
+                <BotonCargando
+                  type="submit"
+                  className="btn-primary"
+                  cargando={guardando}
+                  textoCargando={esModoEdicion ? 'Guardando...' : 'Creando...'}
+                >
                   {esModoEdicion ? 'Guardar Cambios' : 'Crear Usuario'}
-                </button>
+                </BotonCargando>
               </div>
             </form>
           )}

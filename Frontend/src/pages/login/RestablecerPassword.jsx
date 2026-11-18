@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import authService from '../../services/auth';
+import { esTimeout, MENSAJE_TIMEOUT } from '../../services/api';
+import CampoPassword from '../../components/CampoPassword';
 import './login.css';
 
 function RestablecerPassword() {
@@ -42,7 +44,7 @@ function RestablecerPassword() {
       setMensaje(response.mensaje);
       setTimeout(() => navigate('/login'), 3000); 
     } catch (err) {
-      setError(err.response?.data?.error || 'El enlace es inválido o ha expirado.');
+      setError(esTimeout(err) ? MENSAJE_TIMEOUT : err.response?.data?.error || 'El enlace es inválido o ha expirado.');
     } finally {
       setCargando(false);
     }
@@ -71,30 +73,26 @@ function RestablecerPassword() {
           {mensaje && <div className="alert alert-success p-2 mb-3">{mensaje} Redirigiendo...</div>}
 
           <form onSubmit={handleRestablecer}>
-            <div className="mb-3">
-              <input 
-                type="password" 
-                className="form-control form-control-lg"
-                placeholder="Nueva contraseña (mín. 8 caracteres)" 
-                required 
-                minLength={8}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                disabled={cargando || mensaje}
-              />
-            </div>
-            <div className="mb-3">
-              <input 
-                type="password" 
-                className="form-control form-control-lg"
-                placeholder="Confirmar nueva contraseña" 
-                required 
-                minLength={8}
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                disabled={cargando || mensaje}
-              />
-            </div>
+            <CampoPassword
+              className="mb-3"
+              placeholder="Nueva contraseña (mín. 8 caracteres)"
+              autoComplete="new-password"
+              required
+              minLength={8}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              disabled={cargando || Boolean(mensaje)}
+            />
+            <CampoPassword
+              className="mb-3"
+              placeholder="Confirmar nueva contraseña"
+              autoComplete="new-password"
+              required
+              minLength={8}
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              disabled={cargando || Boolean(mensaje)}
+            />
             
             <button type="submit" className="btn btn-acceder btn-lg mt-2 mb-4" disabled={cargando || mensaje}>
               {cargando ? 'Guardando...' : 'Restablecer Contraseña'}

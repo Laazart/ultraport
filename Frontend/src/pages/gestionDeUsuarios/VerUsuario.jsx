@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import userService, { contratoService , rolService } from '../../services/userService';
 import TextoRol from '../../components/TextoRol';
+import { esTimeout, MENSAJE_TIMEOUT } from '../../services/api';
 import './GestionDeUsuarios.css'; 
 
 const VerUsuario = () => {
@@ -33,7 +34,7 @@ const VerUsuario = () => {
         : respuestaRoles.results ?? [];
       setRoles(listaRoles);
     } catch (error) {
-      setError("No se pudo cargar la información del usuario.");
+      setError(esTimeout(error) ? MENSAJE_TIMEOUT : "No se pudo cargar la información del usuario.");
     } finally {
       setCargando(false);
     }

@@ -3,38 +3,72 @@ import { useNavigate } from 'react-router-dom';
 import authService from '../../services/auth';
 import './GestionDeUsuarios.css';
 import userService from '../../services/userService';
+import { mensajeError } from '../../services/api';
 
 const RUTA_HOME = '/home';
+const ESPERA_BUSQUEDA_MS = 300;
 
 const GestionDeUsuarios = () => {
-  const [usuario, setUsuario] = useState(null);
+  const [usuario] = useState(() => authService.getCurrentUser());
   const [listaUsuarios, setListaUsuarios] = useState([]);
+  const [totalUsuarios, setTotalUsuarios] = useState(0);
+  const [totalPaginas, setTotalPaginas] = useState(1);
+  const [pagina, setPagina] = useState(1);
   const [cargando, setCargando] = useState(true);
+  const [error, setError] = useState('');
   const [usuarioAEliminar, setUsuarioAEliminar] = useState(null);
+  // `busqueda` es lo que se escribe; `busquedaAplicada` lo que se envía al
+  // servidor, con una pequeña espera para no pedir una página por tecla.
   const [busqueda, setBusqueda] = useState('');
+  const [busquedaAplicada, setBusquedaAplicada] = useState('');
   const navigate = useNavigate();
 
   useEffect(() => {
-    const currentUser = authService.getCurrentUser();
-    if (currentUser) {
-      setUsuario(currentUser);
-      cargarUsuarios();
-    } else {
-      navigate('/login');
-    }
-  }, [navigate]);
+    if (!usuario) navigate('/login');
+  }, [usuario, navigate]);
 
-  const cargarUsuarios = async () => {
-    try {
+  useEffect(() => {
+    const termino = busqueda.trim();
+    if (termino === busquedaAplicada) return undefined;
+    const id = setTimeout(() => {
+      setBusquedaAplicada(termino);
+      setPagina(1);
+    }, ESPERA_BUSQUEDA_MS);
+    return () => clearTimeout(id);
+  }, [busqueda, busquedaAplicada]);
+
+  useEffect(() => {
+    if (!usuario) return undefined;
+    // Si llega una respuesta de una página/búsqueda anterior, se descarta.
+    let vigente = true;
+    const cargar = async () => {
       setCargando(true);
-      const data = await userService.getUsuarios();
-      setListaUsuarios(data);
-    } catch (error) {
-      console.error("Error al cargar los usuarios:", error);
-    } finally {
-      setCargando(false);
-    }
-  };
+      setError('');
+      try {
+        const data = await userService.getUsuarios({ pagina, busqueda: busquedaAplicada });
+        if (!vigente) return;
+        setListaUsuarios(data.results);
+        setTotalUsuarios(data.count);
+        setTotalPaginas(data.total_paginas);
+      } catch (err) {
+        if (!vigente) return;
+        if (err.response?.status === 404 && pagina > 1) {
+          // La página dejó de existir (p. ej. cambió el total): volver a la primera.
+          setPagina(1);
+          return;
+        }
+        console.error('Error al cargar los usuarios:', err);
+        setError(mensajeError(err, 'No se pudieron cargar los usuarios.'));
+        setListaUsuarios([]);
+      } finally {
+        if (vigente) setCargando(false);
+      }
+    };
+    cargar();
+    return () => {
+      vigente = false;
+    };
+  }, [usuario, pagina, busquedaAplicada]);
 
   const handleLogout = async () => {
     await authService.logout();
@@ -68,14 +102,6 @@ const GestionDeUsuarios = () => {
       cerrarModalEliminar();
     }
   };
-
-  const termino = busqueda.trim().toLowerCase();
-  const usuariosFiltrados = listaUsuarios.filter((u) => {
-    if (!termino) return true;
-    const nombreCompleto = `${u.nombres} ${u.apellidos}`.toLowerCase();
-    const rut = (u.rut || '').toLowerCase();
-    return nombreCompleto.includes(termino) || rut.includes(termino);
-  });
 
   return (
     <div className="up-shell">
@@ -128,6 +154,12 @@ const GestionDeUsuarios = () => {
           </button>
         </div>
 
+        {error && (
+          <div className="alert alert-danger" style={{backgroundColor: 'rgba(226, 87, 76, 0.1)', color: '#F2867D', border: '1px solid #E2574C'}}>
+            {error}
+          </div>
+        )}
+
         <div className="up-table-wrapper">
           <table className="table up-table align-middle mb-0">
             <thead>
@@ -145,11 +177,13 @@ const GestionDeUsuarios = () => {
               {cargando ? (
                 <tr><td colSpan="7" className="text-center py-4 text-light">Cargando usuarios...</td></tr>
               ) : listaUsuarios.length === 0 ? (
-                <tr><td colSpan="7" className="text-center py-4 text-muted">No hay usuarios registrados.</td></tr>
-              ) : usuariosFiltrados.length === 0 ? (
-                <tr><td colSpan="7" className="text-center py-4 text-muted">No se encontraron usuarios.</td></tr>
+                <tr>
+                  <td colSpan="7" className="text-center py-4 text-muted">
+                    {busquedaAplicada ? 'No se encontraron usuarios.' : 'No hay usuarios registrados.'}
+                  </td>
+                </tr>
               ) : (
-                usuariosFiltrados.map((u) => (
+                listaUsuarios.map((u) => (
                   <tr key={u.id_usuario}>
                     <td className="fw-medium text-light">{u.rut}</td>
                     <td className="text-light">{u.nombres} {u.apellidos}</td>
@@ -190,6 +224,33 @@ const GestionDeUsuarios = () => {
             </tbody>
           </table>
         </div>
+
+        {totalUsuarios > 0 && (
+          <div className="d-flex justify-content-between align-items-center flex-wrap gap-3 mt-3 text-light">
+            <span className="text-muted">
+              {totalUsuarios} {totalUsuarios === 1 ? 'usuario' : 'usuarios'}
+            </span>
+            <div className="d-flex align-items-center gap-3">
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => setPagina((p) => p - 1)}
+                disabled={cargando || pagina <= 1}
+              >
+                <i className="bi bi-chevron-left"></i> Anterior
+              </button>
+              <span aria-live="polite">Página {pagina} de {totalPaginas}</span>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => setPagina((p) => p + 1)}
+                disabled={cargando || pagina >= totalPaginas}
+              >
+                Siguiente <i className="bi bi-chevron-right"></i>
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {usuarioAEliminar && (
