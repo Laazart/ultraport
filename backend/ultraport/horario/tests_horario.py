@@ -125,18 +125,29 @@ class HorarioDiaTests(APITestCase):
     def test_trabajador_ve_su_turno_y_su_fila(self):
         self._escenario_basico()
         data = self._get(self.trabajador).data
-        self.assertEqual(data['mi_turno'], {
+        self.assertEqual(data['mis_turnos'], [{
             'id_bloque': self.bloque3.pk, 'orden': 3, 'hora_inicio': '23:00', 'hora_termino': '07:00',
             'cruza_medianoche': True, 'area': 'Naves y Embarcaciones', 'funcion': 'Capataz', 'maquina': None,
-        })
+        }])
         self.assertEqual([fila['codigo'] for fila in _filas(data) if fila['es_mio']], [str(self.trabajador.pk)])
 
-    def test_admin_y_encargado_sin_mi_turno(self):
+    def test_trabajador_con_primero_y_tercero_ve_ambos_turnos(self):
+        self._asignar(self._turno(self.bloque3, self.capataz, self.naves), self.trabajador)
+        self._asignar(self._turno(self.bloque1, self.operador, self.almacenes, self.payloader), self.trabajador)
+        mis_turnos = self._get(self.trabajador).data['mis_turnos']
+        self.assertEqual([t['orden'] for t in mis_turnos], [1, 3])
+        self.assertEqual(
+            [(t['area'], t['funcion'], t['maquina']) for t in mis_turnos],
+            [('Almacenes 1 y 4', 'Operador de Payloader', 'Payloader'),
+             ('Naves y Embarcaciones', 'Capataz', None)],
+        )
+
+    def test_admin_y_encargado_sin_mis_turnos(self):
         self._escenario_basico()
         for usuario in (self.admin, self.encargado):
             with self.subTest(usuario=usuario.correo):
                 data = self._get(usuario).data
-                self.assertIsNone(data['mi_turno'])
+                self.assertEqual(data['mis_turnos'], [])
                 self.assertFalse(any(fila['es_mio'] for fila in _filas(data)))
 
     def test_fecha_sin_malla(self):
@@ -144,7 +155,7 @@ class HorarioDiaTests(APITestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertIsNone(resp.data['malla'])
         self.assertFalse(resp.data['publicada'])
-        self.assertIsNone(resp.data['mi_turno'])
+        self.assertEqual(resp.data['mis_turnos'], [])
         self.assertEqual([bloque['orden'] for bloque in resp.data['bloques']], [1, 2, 3])
         for bloque in resp.data['bloques']:
             self.assertEqual(bloque['total'], 0)
@@ -160,7 +171,7 @@ class HorarioDiaTests(APITestCase):
                 self.assertEqual(data['malla'], {'id_malla': self.malla.pk, 'estado': 'borrador'})
                 self.assertFalse(data['publicada'])
                 self.assertEqual(_filas(data), [])
-                self.assertIsNone(data['mi_turno'])
+                self.assertEqual(data['mis_turnos'], [])
         data = self._get(self.encargado).data
         self.assertFalse(data['publicada'])
         self.assertEqual(len(_filas(data)), 2)

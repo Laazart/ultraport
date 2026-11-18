@@ -135,6 +135,12 @@
   margin: 6px 0 8px;
 }
 
+.hor-mi-turno-item + .hor-mi-turno-item {
+  border-top: 1px solid rgba(242, 166, 61, 0.25);
+  margin-top: 12px;
+  padding-top: 4px;
+}
+
 .hor-mi-turno-detalle {
   display: flex;
   flex-wrap: wrap;

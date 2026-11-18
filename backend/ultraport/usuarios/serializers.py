@@ -148,14 +148,15 @@ class ContratoSerializer(serializers.ModelSerializer):
     turno_habitual = serializers.CharField(max_length=20,help_text='Turno habitual: dia, tarde, noche o rotativo.',)
     horas_semanales_pactadas = serializers.IntegerField(help_text='Horas semanales acordadas en el contrato.',)
     permite_horas_extra = serializers.BooleanField(required=False,help_text='Indica si el contrato admite horas extra.',)
-    max_noches_consecutivas = serializers.IntegerField(help_text='Tope de noches seguidas permitido para este contrato.',)
+    max_noches_consecutivas = serializers.IntegerField(allow_null=True,required=False,min_value=1,help_text='Tope de noches seguidas. Nulo = sin límite.',)
+    max_noches_semana = serializers.IntegerField(allow_null=True,required=False,min_value=1,help_text='Tope de noches por semana (lunes a domingo). Nulo = sin límite.',)
     fecha_inicio = serializers.DateField(help_text='Fecha de inicio del contrato.',)
     fecha_termino = serializers.DateField(allow_null=True,required=False,help_text='Fecha de término. Vacío si el contrato sigue vigente.',)
     fecha_creacion = serializers.DateTimeField(read_only=True, help_text='Fecha en que se creó el contrato.',)
     fecha_actualizacion = serializers.DateTimeField(read_only=True, help_text='Fecha en que se actualizo el contrato.',)
     class Meta:
         model = Contrato
-        fields = ['id_contrato','tipo','modalidad','turno_habitual','horas_semanales_pactadas','permite_horas_extra','max_noches_consecutivas', 'fecha_inicio','fecha_termino',"fecha_creacion","fecha_actualizacion"]
+        fields = ['id_contrato','tipo','modalidad','turno_habitual','horas_semanales_pactadas','permite_horas_extra','max_noches_consecutivas','max_noches_semana', 'fecha_inicio','fecha_termino',"fecha_creacion","fecha_actualizacion"]
         read_only_fields = ['id_contrato', 'fecha_creacion', 'fecha_actualizacion']
 
 

@@ -56,5 +56,5 @@ class HorarioDiaSerializer(serializers.Serializer):
     malla = MallaResumenSerializer(allow_null=True)
     publicada = serializers.BooleanField()
     puede_editar = serializers.BooleanField()
-    mi_turno = MiTurnoSerializer(allow_null=True)
+    mis_turnos = MiTurnoSerializer(many=True)
     bloques = BloqueHorarioSerializer(many=True)
