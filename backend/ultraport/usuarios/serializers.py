@@ -11,7 +11,7 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.validators import RegexValidator
 from .validar_rut import validar_rut_modulo_11, normalizar_rut
 
-MENSAJE_CREDENCIALES_INVALIDAS = 'RUT o contraseña incorrectos'
+MENSAJE_CREDENCIALES_INVALIDAS = 'RUT, correo o contraseña incorrectos'
 
 
 class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):

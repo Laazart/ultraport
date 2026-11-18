@@ -4,6 +4,7 @@ import authService from '../../services/auth';
 import TextoRol from '../../components/TextoRol';
 import horarioVistaService from '../../services/horarioVista';
 import horarioService from '../../services/horario';
+import { mensajeError } from '../../services/api';
 import '../home/home.css';
 import './visualizacionHorario.css';
 
@@ -35,13 +36,6 @@ const diaSemana = (iso) => desdeISO(iso).toLocaleDateString('es-CL', { weekday: 
 
 const rangoHorario = (b) =>
   `${b.hora_inicio} – ${b.hora_termino}${b.cruza_medianoche ? ' (+1 día)' : ''}`;
-
-const mensajeError = (err, porDefecto) => {
-  const data = err.response?.data;
-  if (!data) return porDefecto;
-  if (data.detail) return data.detail;
-  return Object.values(data).flat().join(' ') || porDefecto;
-};
 
 const bloqueInicial = (data) => {
   if (data.mis_turnos?.length) return data.mis_turnos[0].id_bloque;

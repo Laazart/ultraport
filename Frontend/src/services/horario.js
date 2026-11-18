@@ -1,6 +1,5 @@
-import axios from 'axios';
 import authService from './auth';
-import { API_BASE } from './api';
+import http, { API_BASE, TIMEOUT_ARCHIVOS_MS } from './api';
 
 const API_URL = API_BASE;
 
@@ -15,39 +14,39 @@ const getAuthHeaders = () => {
 
 const horarioService = {
   listarMallas: async () => {
-    const response = await axios.get(`${API_URL}mallas/`, getAuthHeaders());
+    const response = await http.get(`${API_URL}mallas/`, getAuthHeaders());
     return response.data;
   },
 
   obtenerMalla: async (id) => {
-    const response = await axios.get(`${API_URL}mallas/${id}/`, getAuthHeaders());
+    const response = await http.get(`${API_URL}mallas/${id}/`, getAuthHeaders());
     return response.data;
   },
 
   iniciarMalla: async (fecha, requerimientos) => {
     const body = { requerimientos };
     if (fecha) body.fecha = fecha;
-    const response = await axios.post(`${API_URL}mallas/iniciar/`, body, getAuthHeaders());
+    const response = await http.post(`${API_URL}mallas/iniciar/`, body, getAuthHeaders());
     return response.data;
   },
 
   autocompletarMalla: async (id) => {
-    const response = await axios.post(`${API_URL}mallas/${id}/autocompletar/`, {}, getAuthHeaders());
+    const response = await http.post(`${API_URL}mallas/${id}/autocompletar/`, {}, getAuthHeaders());
     return response.data;
   },
 
   publicarMalla: async (id) => {
-    const response = await axios.post(`${API_URL}mallas/${id}/publicar/`, {}, getAuthHeaders());
+    const response = await http.post(`${API_URL}mallas/${id}/publicar/`, {}, getAuthHeaders());
     return response.data;
   },
 
   candidatosTurno: async (idTurno) => {
-    const response = await axios.get(`${API_URL}turnos/${idTurno}/candidatos/`, getAuthHeaders());
+    const response = await http.get(`${API_URL}turnos/${idTurno}/candidatos/`, getAuthHeaders());
     return response.data;
   },
 
   asignar: async (idTurno, idUsuario) => {
-    const response = await axios.post(
+    const response = await http.post(
       `${API_URL}asignaciones/`,
       { id_turno: idTurno, id_usuario: idUsuario },
       getAuthHeaders()
@@ -56,12 +55,12 @@ const horarioService = {
   },
 
   quitarAsignacion: async (idAsignacion) => {
-    const response = await axios.delete(`${API_URL}asignaciones/${idAsignacion}/`, getAuthHeaders());
+    const response = await http.delete(`${API_URL}asignaciones/${idAsignacion}/`, getAuthHeaders());
     return response.data;
   },
 
   reemplazarAsignacion: async (idAsignacion, idUsuario) => {
-    const response = await axios.post(
+    const response = await http.post(
       `${API_URL}asignaciones/${idAsignacion}/reemplazar/`,
       { id_usuario: idUsuario },
       getAuthHeaders()
@@ -71,16 +70,16 @@ const horarioService = {
     iniciarDesdePlantilla: async (fecha, idBloque = 1) => {
     const body = { id_bloque: idBloque };
     if (fecha) body.fecha = fecha;
-    const response = await axios.post(`${API_URL}mallas/iniciar-plantilla/`, body, getAuthHeaders());
+    const response = await http.post(`${API_URL}mallas/iniciar-plantilla/`, body, getAuthHeaders());
     return response.data;
   },
   candidatosTurno: async (idTurno) => {
-  const response = await axios.get(`${API_URL}turnos/${idTurno}/candidatos/`, getAuthHeaders());
+  const response = await http.get(`${API_URL}turnos/${idTurno}/candidatos/`, getAuthHeaders());
   return response.data;
 },
 
 asignar: async (idTurno, idUsuario) => {
-  const response = await axios.post(
+  const response = await http.post(
     `${API_URL}asignaciones/`,
     { id_turno: idTurno, id_usuario: idUsuario },
     getAuthHeaders()
@@ -89,10 +88,11 @@ asignar: async (idTurno, idUsuario) => {
 },
 descargarArchivo: async (url, params, nombre) => {
   try {
-    const response = await axios.get(`${API_URL}${url}`, {
+    const response = await http.get(`${API_URL}${url}`, {
       ...getAuthHeaders(),
       params,
       responseType: 'blob',
+      timeout: TIMEOUT_ARCHIVOS_MS,
     });
     const href = URL.createObjectURL(response.data);
     const enlace = document.createElement('a');

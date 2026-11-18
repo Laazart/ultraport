@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import authService from '../../services/auth';
 import TextoRol from '../../components/TextoRol';
 import inasistenciasService from '../../services/inasistencias';
+import { mensajeError } from '../../services/api';
+import BotonCargando from '../../components/BotonCargando';
 import '../home/home.css';
 import './notificarInasistencia.css';
 
@@ -28,13 +30,6 @@ const rangoFechas = (n) =>
   n.fecha_fin && n.fecha_fin !== n.fecha_inicio
     ? `${formatearFecha(n.fecha_inicio)} al ${formatearFecha(n.fecha_fin)}`
     : formatearFecha(n.fecha_inicio);
-
-const mensajeError = (err, porDefecto) => {
-  const data = err.response?.data;
-  if (!data) return porDefecto;
-  if (data.detail) return data.detail;
-  return Object.values(data).flat().join(' ') || porDefecto;
-};
 
 const BadgeEstado = ({ estado }) => (
   <span className={`ina-badge ina-badge-${estado}`}>
@@ -178,9 +173,9 @@ const VistaTrabajador = ({ usuario }) => {
           required
         />
 
-        <button type="submit" className="ina-btn" disabled={enviando}>
-          {enviando ? 'Enviando...' : 'Enviar aviso'}
-        </button>
+        <BotonCargando type="submit" className="ina-btn" cargando={enviando} textoCargando="Enviando...">
+          Enviar aviso
+        </BotonCargando>
       </form>
 
       <div className="ina-panel">
@@ -234,7 +229,7 @@ const VistaEncargado = () => {
 
   const handleEstado = async (aviso, estado) => {
     if (estado === aviso.estado) return;
-    setActualizando(aviso.id_notificacion);
+    setActualizando({ id: aviso.id_notificacion, estado });
     setError('');
     try {
       const actualizado = await inasistenciasService.cambiarEstado(aviso.id_notificacion, estado);
@@ -304,33 +299,36 @@ const VistaEncargado = () => {
                   <td><BadgeEstado estado={a.estado} /></td>
                   <td>
                     <div className="ina-acciones">
-                      <button
-                        type="button"
+                      <BotonCargando
                         className="ina-accion aprobar"
-                        disabled={actualizando === a.id_notificacion || a.estado === 'aprobado'}
+                        cargando={actualizando?.id === a.id_notificacion && actualizando.estado === 'aprobado'}
+                        disabled={actualizando?.id === a.id_notificacion || a.estado === 'aprobado'}
+                        textoCargando={null}
                         onClick={() => handleEstado(a, 'aprobado')}
                         title="Aprobar"
                       >
                         <i className="bi bi-check-lg"></i>
-                      </button>
-                      <button
-                        type="button"
+                      </BotonCargando>
+                      <BotonCargando
                         className="ina-accion rechazar"
-                        disabled={actualizando === a.id_notificacion || a.estado === 'rechazado'}
+                        cargando={actualizando?.id === a.id_notificacion && actualizando.estado === 'rechazado'}
+                        disabled={actualizando?.id === a.id_notificacion || a.estado === 'rechazado'}
+                        textoCargando={null}
                         onClick={() => handleEstado(a, 'rechazado')}
                         title="Rechazar"
                       >
                         <i className="bi bi-x-lg"></i>
-                      </button>
-                      <button
-                        type="button"
+                      </BotonCargando>
+                      <BotonCargando
                         className="ina-accion"
-                        disabled={actualizando === a.id_notificacion || a.estado === 'pendiente'}
+                        cargando={actualizando?.id === a.id_notificacion && actualizando.estado === 'pendiente'}
+                        disabled={actualizando?.id === a.id_notificacion || a.estado === 'pendiente'}
+                        textoCargando={null}
                         onClick={() => handleEstado(a, 'pendiente')}
                         title="Volver a pendiente"
                       >
                         <i className="bi bi-arrow-counterclockwise"></i>
-                      </button>
+                      </BotonCargando>
                     </div>
                   </td>
                 </tr>

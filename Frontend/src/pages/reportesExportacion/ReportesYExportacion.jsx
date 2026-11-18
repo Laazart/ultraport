@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import authService from '../../services/auth';
 import TextoRol from '../../components/TextoRol';
 import horarioService from '../../services/horario';
+import { mensajeError } from '../../services/api';
 import '../home/home.css';
 import '../mallaDeTurnos/gestionMalla.css';
 import './ReportesYExportacion.css';
@@ -20,13 +21,6 @@ const primerDiaDelMesISO = () => {
 const formatearFecha = (iso) => {
   const [a, m, d] = iso.split('-');
   return `${d}-${m}-${a}`;
-};
-
-const mensajeError = (err) => {
-  const data = err.response?.data;
-  if (!data) return 'Error de conexión.';
-  if (data.detail) return data.detail;
-  return Object.values(data).flat().join(' ') || 'Ocurrió un error.';
 };
 
 const ReportesYExportacion = () => {
@@ -61,7 +55,7 @@ const ReportesYExportacion = () => {
         setMallasPublicadas(publicadas);
         if (publicadas.length > 0) setMallaId(String(publicadas[0].id_malla));
       })
-      .catch(() => setError('No se pudieron cargar las mallas.'))
+      .catch((err) => setError(mensajeError(err, 'No se pudieron cargar las mallas.')))
       .finally(() => setCargandoMallas(false));
   }, [navigate]);
 

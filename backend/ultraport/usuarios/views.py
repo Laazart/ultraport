@@ -12,6 +12,9 @@ from .services import (
 from .permissions import Permisos, TienePermiso
 from .models import Usuario, Rol, Contrato, Puesto, TipoLicencia, Maquinaria, UsuarioPuesto, UsuarioLicencia, UsuarioMaquinaria
 from django.utils import timezone
+from django.db.models import Q, Value
+from django.db.models.functions import Concat
+from rest_framework.pagination import PageNumberPagination
 from .serializers import (
     PuestoSerializer, TipoLicenciaSerializer, MaquinariaSerializer,
     UsuarioPuestoSerializer, UsuarioLicenciaSerializer, UsuarioMaquinariaSerializer,
@@ -80,16 +83,49 @@ class RestablecerPasswordView(APIView):
 
         return Response({'mensaje': 'Contraseña actualizada.'}, status=status.HTTP_200_OK)
 
+class PaginacionUsuarios(PageNumberPagination):
+    """20 usuarios por página (?page=N). Agrega total de páginas y página actual."""
+    page_size = 20
+
+    def get_paginated_response(self, data):
+        response = super().get_paginated_response(data)
+        response.data['total_paginas'] = self.page.paginator.num_pages
+        response.data['pagina'] = self.page.number
+        return response
+
+
 class UsuarioViewSet(viewsets.ModelViewSet):
     serializer_class = UsuarioSerializer
     permission_classes = [IsAuthenticated, TienePermiso]
     permiso_requerido = Permisos.USUARIOS_GESTIONAR
+    pagination_class = PaginacionUsuarios
 
     def get_queryset(self):
-        return (
+        queryset = (
             Usuario.objects
             .select_related('id_rol', 'id_contrato')
-            .order_by('apellidos', 'nombres')
+            # id_usuario desempata: el orden debe ser total para paginar sin saltos.
+            .order_by('apellidos', 'nombres', 'id_usuario')
+        )
+        if self.action == 'list':
+            queryset = self._filtrar_busqueda(queryset)
+        return queryset
+
+    def _filtrar_busqueda(self, queryset):
+        """?search= filtra por nombre completo o RUT (con o sin puntos)."""
+        # .lower() en Python: el LIKE de SQLite solo ignora mayúsculas en ASCII,
+        # así "MARÍA" encuentra "María".
+        termino = self.request.query_params.get('search', '').strip().lower()
+        if not termino:
+            return queryset
+        filtro = Q(nombre_completo__icontains=termino)
+        termino_rut = termino.replace('.', '')
+        if termino_rut:
+            filtro |= Q(rut__icontains=termino_rut)
+        return (
+            queryset
+            .annotate(nombre_completo=Concat('nombres', Value(' '), 'apellidos'))
+            .filter(filtro)
         )
 
     def destroy(self, request, *args, **kwargs):

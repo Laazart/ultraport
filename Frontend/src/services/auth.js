@@ -1,5 +1,4 @@
-import axios from 'axios';
-import { API_BASE } from './api';
+import http, { API_BASE } from './api';
 
 const API_URL = API_BASE;
 
@@ -7,7 +6,7 @@ const authService = {
   // identificador: RUT (con o sin puntos) o correo.
   login: async (identificador, password) => {
     try {
-      const response = await axios.post(`${API_URL}login/`, { identificador, password });
+      const response = await http.post(`${API_URL}login/`, { identificador, password });
       
       localStorage.setItem('access_token', response.data.access);
       localStorage.setItem('refresh_token', response.data.refresh);
@@ -26,7 +25,7 @@ const authService = {
       const access = localStorage.getItem('access_token');
 
       if (refresh && access) {
-        await axios.post(`${API_URL}logout/`, 
+        await http.post(`${API_URL}logout/`, 
           { refresh }, 
           {
             headers: {
@@ -54,11 +53,11 @@ const authService = {
     return null;
   },
   solicitarRecuperacion: async (identificador) => {
-    const response = await axios.post(`${API_URL}recuperar-password/`, { identificador });
+    const response = await http.post(`${API_URL}recuperar-password/`, { identificador });
     return response.data;
   },
   restablecerPassword: async (token, password) => {
-    const response = await axios.post(`${API_URL}restablecer-password/`, { token, password });
+    const response = await http.post(`${API_URL}restablecer-password/`, { token, password });
     return response.data;
   },
 };

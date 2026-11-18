@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import authService from '../../services/auth';
 import TextoRol from '../../components/TextoRol';
 import horarioService from '../../services/horario';
+import { mensajeError } from '../../services/api';
+import BotonCargando from '../../components/BotonCargando';
 import '../home/home.css';
 import './gestionMalla.css';
 
@@ -34,14 +36,6 @@ const formatearFecha = (iso) => {
   return `${d}-${m}-${a}`;
 };
 
-const mensajeError = (err) => {
-  const data = err.response?.data;
-  if (!data) return 'Error de conexión.';
-  if (data.detail) return data.detail;
-  if (Array.isArray(data)) return data.join(' ');
-  return Object.values(data).flat().join(' ') || 'Ocurrió un error.';
-};
-
 const bloqueInicialDe = (m) => {
   const con = m.turnos.find((t) => t.asignaciones.length < t.cupos);
   return (con ?? m.turnos[0])?.bloque.nombre_bloque ?? 'primer_turno';
@@ -66,6 +60,8 @@ const GestionMalla = () => {
   const [fecha, setFecha] = useState('');
   const [error, setError] = useState('');
   const [cargando, setCargando] = useState(false);
+  // Qué botón disparó la operación en curso, para mostrar su spinner.
+  const [accion, setAccion] = useState(null);
   const [bloqueActivo, setBloqueActivo] = useState('primer_turno');
   const [turnoSeleccionado, setTurnoSeleccionado] = useState(null);
   const [candidatos, setCandidatos] = useState([]);
@@ -82,19 +78,21 @@ const GestionMalla = () => {
     horarioService
       .listarMallas()
       .then(setMallas)
-      .catch(() => setError('No se pudieron cargar las mallas.'))
+      .catch((err) => setError(mensajeError(err, 'No se pudieron cargar las mallas.')))
       .finally(() => setCargandoMallas(false));
   }, [navigate]);
 
-  const ejecutar = async (fn) => {
+  const ejecutar = async (fn, clave = null) => {
     setError('');
     setCargando(true);
+    setAccion(clave);
     try {
       await fn();
     } catch (err) {
       setError(mensajeError(err));
     } finally {
       setCargando(false);
+      setAccion(null);
     }
   };
 
@@ -113,16 +111,16 @@ const GestionMalla = () => {
       const nueva = await horarioService.iniciarDesdePlantilla(fecha);
       abrirMalla(nueva);
       setMallas((prev) => [nueva, ...prev]);
-    });
+    }, 'iniciar');
 
   const handleAutocompletar = () =>
     ejecutar(async () => {
       await horarioService.autocompletarMalla(malla.id_malla);
       abrirMalla(await horarioService.obtenerMalla(malla.id_malla));
-    });
+    }, 'autocompletar');
 
   const handlePublicar = () =>
-    ejecutar(async () => abrirMalla(await horarioService.publicarMalla(malla.id_malla)));
+    ejecutar(async () => abrirMalla(await horarioService.publicarMalla(malla.id_malla)), 'publicar');
 
   const handleQuitar = (idAsignacion) =>
     ejecutar(async () => {
@@ -133,7 +131,7 @@ const GestionMalla = () => {
         const t = actualizada.turnos.find((x) => x.id_turno === turnoSeleccionado.id_turno);
         setTurnoSeleccionado(t ?? null);
       }
-    });
+    }, `quitar-${idAsignacion}`);
 
   const seleccionarTurno = async (turno) => {
     setTurnoSeleccionado(turno);
@@ -156,7 +154,7 @@ const GestionMalla = () => {
       setMalla(actualizada);
       setTurnoSeleccionado(actualizada.turnos.find((t) => t.id_turno === idTurno) ?? null);
       setCandidatos(await horarioService.candidatosTurno(idTurno));
-    });
+    }, `asignar-${idUsuario}`);
 
   const handleLogout = async () => {
     await authService.logout();
@@ -234,13 +232,15 @@ const GestionMalla = () => {
               value={fecha}
               onChange={(e) => setFecha(e.target.value)}
             />
-            <button
+            <BotonCargando
               className="gm-btn gm-btn-primario"
               onClick={handleIniciarPlantilla}
               disabled={cargando}
+              cargando={accion === 'iniciar'}
+              textoCargando="Iniciando..."
             >
               <i className="bi bi-plus-circle"></i> Iniciar planificación
-            </button>
+            </BotonCargando>
           </div>
         </section>
 
@@ -284,12 +284,24 @@ const GestionMalla = () => {
                   </div>
                 </div>
                 <div className="gm-acciones">
-                  <button className="gm-btn" disabled={!editable} onClick={handleAutocompletar}>
+                  <BotonCargando
+                    className="gm-btn"
+                    disabled={!editable}
+                    cargando={accion === 'autocompletar'}
+                    textoCargando="Autocompletando..."
+                    onClick={handleAutocompletar}
+                  >
                     <i className="bi bi-magic"></i> Autocompletar
-                  </button>
-                  <button className="gm-btn gm-btn-primario" disabled={!editable} onClick={handlePublicar}>
+                  </BotonCargando>
+                  <BotonCargando
+                    className="gm-btn gm-btn-primario"
+                    disabled={!editable}
+                    cargando={accion === 'publicar'}
+                    textoCargando="Publicando..."
+                    onClick={handlePublicar}
+                  >
                     <i className="bi bi-send"></i> Publicar
-                  </button>
+                  </BotonCargando>
                 </div>
               </div>
 
@@ -372,17 +384,19 @@ const GestionMalla = () => {
                                       </td>
                                       {editable && (
                                         <td className="gm-col-acciones">
-                                          <button
+                                          <BotonCargando
                                             className="gm-btn-quitar"
                                             title="Quitar de este turno"
                                             disabled={cargando}
+                                            cargando={accion === `quitar-${a.id_asignacion}`}
+                                            textoCargando={null}
                                             onClick={(e) => {
                                               e.stopPropagation();
                                               handleQuitar(a.id_asignacion);
                                             }}
                                           >
                                             <i className="bi bi-x-lg"></i>
-                                          </button>
+                                          </BotonCargando>
                                         </td>
                                       )}
                                     </tr>
@@ -438,13 +452,14 @@ const GestionMalla = () => {
                               <i className="bi bi-clock"></i> {c.horas_semana} h esta semana
                             </div>
                           </div>
-                          <button
+                          <BotonCargando
                             className="gm-btn gm-btn-primario"
                             disabled={!editable || turnoLleno || cargando}
+                            cargando={accion === `asignar-${c.id_usuario}`}
                             onClick={() => handleAsignar(c.id_usuario)}
                           >
                             Asignar
-                          </button>
+                          </BotonCargando>
                         </li>
                       ))}
                     </ul>

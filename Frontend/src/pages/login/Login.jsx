@@ -1,5 +1,8 @@
 import { useState } from 'react'
 import authService from '../../services/auth'
+import { esTimeout, MENSAJE_TIMEOUT, MENSAJE_SIN_CONEXION } from '../../services/api'
+import BotonCargando from '../../components/BotonCargando'
+import CampoPassword from '../../components/CampoPassword'
 import './login.css'
 import { useNavigate,Link } from 'react-router-dom'
 
@@ -7,22 +10,30 @@ function Login() {
   const [identificador, setIdentificador] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [enviando, setEnviando] = useState(false);
   
   const navigate = useNavigate();
 
   const handleLogin = async (e) => {
     e.preventDefault();
-    setError(''); 
-    
-    try {  
+    setError('');
+    setEnviando(true);
+
+    try {
       await authService.login(identificador, password);
       navigate('/home');
     } catch (err) {
-      setError(
-        err.response
-          ? 'RUT o contraseña incorrectos'
-          : 'No se pudo conectar con el servidor.'
-      );
+      setEnviando(false);
+      if (esTimeout(err)) {
+        setError(MENSAJE_TIMEOUT);
+      } else if (err.response?.status === 401) {
+        // El backend responde el mismo 401 y texto para todo rechazo (RF-02).
+        setError(err.response.data?.detail || 'RUT, correo o contraseña incorrectos');
+      } else if (err.response) {
+        setError('No se pudo iniciar sesión. Intenta de nuevo.');
+      } else {
+        setError(MENSAJE_SIN_CONEXION);
+      }
     }
   };
 
@@ -59,20 +70,23 @@ function Login() {
                 onChange={(e) => setIdentificador(e.target.value)}
               />
             </div>
-            <div className="mb-3">
-              <input 
-                type="password" 
-                className="form-control form-control-lg"
-                placeholder="Contraseña" 
-                required 
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-            </div>
+            <CampoPassword
+              className="mb-3"
+              placeholder="Contraseña"
+              autoComplete="current-password"
+              required
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
             
-            <button type="submit" className="btn btn-acceder btn-lg mt-2 mb-4">
+            <BotonCargando
+              type="submit"
+              className="btn btn-acceder btn-lg mt-2 mb-4"
+              cargando={enviando}
+              textoCargando="Accediendo..."
+            >
               Acceder
-            </button>
+            </BotonCargando>
           </form>
 
           <Link to="/olvide-contrasena" className="forgot-password d-block text-white text-center mb-5">
