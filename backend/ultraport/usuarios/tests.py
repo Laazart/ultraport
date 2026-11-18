@@ -1,11 +1,15 @@
 from datetime import date
 from unittest.mock import patch
+from urllib.parse import parse_qs, urlsplit
+
+from django.test import SimpleTestCase, override_settings
 
 from rest_framework.test import APITestCase
 
 from .models import Contrato, Rol, Usuario
 from .permissions import Roles
 from .serializers import MENSAJE_CREDENCIALES_INVALIDAS
+from .services import construir_enlace_recuperacion, enviar_correo_recuperacion
 from .views import MENSAJE_GENERICO
 
 LOGIN_URL = '/api/login/'
@@ -234,3 +238,33 @@ class ListadoUsuariosTests(APITestCase):
     def test_trabajador_no_ve_el_listado(self):
         self.client.force_authenticate(self.con_contrato)
         self.assertEqual(self.client.get(USUARIOS_URL).status_code, 403)
+
+
+class EnlaceRecuperacionTests(SimpleTestCase):
+    """El enlace del correo debe apuntar a la ruta /resetear-password del frontend (main.jsx),
+    que lee el parámetro ?token= (RestablecerPassword.jsx)."""
+
+    def _partes(self, enlace):
+        partes = urlsplit(enlace)
+        return partes, parse_qs(partes.query)
+
+    @override_settings(FRONTEND_URL='http://localhost:5173')
+    def test_enlace_usa_frontend_url_ruta_y_token(self):
+        partes, query = self._partes(construir_enlace_recuperacion('abc-123_XYZ'))
+        self.assertEqual(f'{partes.scheme}://{partes.netloc}', 'http://localhost:5173')
+        self.assertEqual(partes.path, '/resetear-password')
+        self.assertEqual(query, {'token': ['abc-123_XYZ']})
+
+    @override_settings(FRONTEND_URL='https://ultraport.example.com/')
+    def test_barra_final_en_frontend_url_no_duplica_slash(self):
+        enlace = construir_enlace_recuperacion('tok')
+        self.assertEqual(enlace, 'https://ultraport.example.com/resetear-password?token=tok')
+
+    @override_settings(FRONTEND_URL='http://localhost:5173', EMAIL_FROM='no-reply@test.cl')
+    @patch('usuarios.services.resend.Emails.send')
+    def test_correo_incluye_el_enlace(self, mock_send):
+        usuario = Usuario(correo='ana@test.cl', nombres='Ana')
+        token = 'tok-correo'
+        enviar_correo_recuperacion(usuario, token)
+        html = mock_send.call_args.args[0]['html']
+        self.assertIn(f'href="{construir_enlace_recuperacion(token)}"', html)

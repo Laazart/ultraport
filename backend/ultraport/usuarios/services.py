@@ -1,6 +1,7 @@
 import hashlib
 import secrets
 from datetime import timedelta
+from urllib.parse import urlencode
 
 import resend
 from django.conf import settings
@@ -55,8 +56,13 @@ def crear_token_recuperacion(usuario):
     return token
 
 
+def construir_enlace_recuperacion(token):
+    """URL de la página RestablecerPassword del frontend (ruta /resetear-password, lee ?token=)."""
+    return f"{settings.FRONTEND_URL.rstrip('/')}/resetear-password?{urlencode({'token': token})}"
+
+
 def enviar_correo_recuperacion(usuario, token):
-    enlace = f'{settings.FRONTEND_URL}/resetear-password?token={token}'
+    enlace = construir_enlace_recuperacion(token)
     resend.Emails.send({
         'from': settings.EMAIL_FROM,
         'to': [usuario.correo],

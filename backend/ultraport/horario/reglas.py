@@ -8,18 +8,19 @@ from usuarios.permissions import Roles
 from .models import Asignacion, ESTADOS_ACTIVOS, NotificacionInasistencia
 
 VENTANA_RACHA_DIAS = 14
-def tiene_inasistencia_aprobada(usuario, fecha):
-    """True si el usuario tiene una inasistencia aprobada que cubre la fecha."""
+def tiene_inasistencia_aprobada(usuario, fecha, hasta=None):
+    """True si una inasistencia aprobada cubre algún día entre fecha y hasta (inclusive)."""
+    hasta = hasta or fecha
     return (
         NotificacionInasistencia.objects
         .filter(
             id_usuario=usuario,
             estado=NotificacionInasistencia.APROBADO,
-            fecha_inicio__lte=fecha,
+            fecha_inicio__lte=hasta,
         )
         .filter(
             Q(fecha_fin__gte=fecha)
-            | Q(fecha_fin__isnull=True, fecha_inicio=fecha)
+            | Q(fecha_fin__isnull=True, fecha_inicio__gte=fecha)
         )
         .exists()
     )
@@ -107,38 +108,38 @@ def validar_asignacion(usuario, turno, excluir_id=None):
     contrato = usuario.id_contrato
     if contrato is None:
         return ['El trabajador no tiene contrato asignado.']
-    if tiene_inasistencia_aprobada(usuario, fecha):
-        return ['Tiene una inasistencia aprobada que cubre esta fecha.']
+    inicio, fin = bloque.intervalo(fecha)
+    if tiene_inasistencia_aprobada(usuario, inicio.date(), fin.date()):
+        return ['Tiene una inasistencia aprobada que cubre la fecha del turno.']
     errores = validar_competencias(usuario, turno)
     if errores:
         return errores
 
-    if asignaciones_activas(usuario, fecha, fecha, excluir_id).exists():
-        errores.append('Ya tiene un turno asignado para esta fecha.')
-
-    inicio, fin = bloque.intervalo(fecha)
     descanso_minimo = timedelta(hours=settings.HORARIO_DESCANSO_MINIMO_HORAS)
     cercanas = asignaciones_activas(
         usuario, fecha - timedelta(days=1), fecha + timedelta(days=1), excluir_id
     )
+    hay_traslape = False
+    falta_descanso = False
     for otra in cercanas:
         ini_o, fin_o = otra.id_turno.id_bloque.intervalo(otra.id_turno.id_malla.fecha)
-        separacion = max(ini_o - fin, inicio - fin_o)
-        if separacion < descanso_minimo:
-            errores.append(
-                f'No respeta el descanso mínimo de {settings.HORARIO_DESCANSO_MINIMO_HORAS} h entre turnos.'
-            )
-            break
+        if inicio < fin_o and ini_o < fin:
+            hay_traslape = True
+        elif max(ini_o - fin, inicio - fin_o) < descanso_minimo:
+            falta_descanso = True
+    if hay_traslape:
+        errores.append('Se traslapa con otro turno asignado.')
+    if falta_descanso:
+        errores.append(
+            f'No respeta el descanso mínimo de {settings.HORARIO_DESCANSO_MINIMO_HORAS} h entre turnos.'
+        )
 
     semana = asignaciones_de_la_semana(usuario, fecha, excluir_id)
     horas_semana = sum(a.id_turno.id_bloque.duracion_horas() for a in semana)
     horas_nuevas = horas_semana + bloque.duracion_horas()
 
-    if horas_nuevas > settings.HORARIO_LIMITE_SEMANAL_LEGAL:
-        errores.append(
-            f'Superaría el límite legal semanal de {settings.HORARIO_LIMITE_SEMANAL_LEGAL} h.'
-        )
-    elif horas_nuevas > contrato.horas_semanales_pactadas and not contrato.permite_horas_extra:
+    # Con horas extra permitidas no hay tope semanal; sin ellas, el tope es lo pactado.
+    if not contrato.permite_horas_extra and horas_nuevas > contrato.horas_semanales_pactadas:
         errores.append(
             f'Superaría las {contrato.horas_semanales_pactadas} h pactadas y el contrato no permite horas extra.'
         )
