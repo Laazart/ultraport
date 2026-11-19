@@ -5,37 +5,20 @@ import TextoRol from '../../components/TextoRol';
 import horarioVistaService from '../../services/horarioVista';
 import horarioService from '../../services/horario';
 import { mensajeError } from '../../services/api';
+import VistaSemana from './VistaSemana';
+import { diaSemana, formatearFecha, hoyISO, rangoHorario, sumarDias } from './fechas';
 import '../home/home.css';
 import './visualizacionHorario.css';
 
 const RUTA_HOME = '/home';
 const RUTA_GESTION = '/malla/gestion';
 const FAENA_GENERAL = 'General';
+const ROL_TRABAJADOR = 3;
 
-const dos = (n) => String(n).padStart(2, '0');
-
-const aISO = (d) => `${d.getFullYear()}-${dos(d.getMonth() + 1)}-${dos(d.getDate())}`;
-
-const desdeISO = (iso) => {
-  const [a, m, d] = iso.split('-').map(Number);
-  return new Date(a, m - 1, d);
-};
-
-const sumarDias = (iso, dias) => {
-  const d = desdeISO(iso);
-  d.setDate(d.getDate() + dias);
-  return aISO(d);
-};
-
-const formatearFecha = (iso) => {
-  const [a, m, d] = iso.split('-');
-  return `${d}-${m}-${a}`;
-};
-
-const diaSemana = (iso) => desdeISO(iso).toLocaleDateString('es-CL', { weekday: 'long' });
-
-const rangoHorario = (b) =>
-  `${b.hora_inicio} – ${b.hora_termino}${b.cruza_medianoche ? ' (+1 día)' : ''}`;
+const MODOS = [
+  { valor: 'dia', etiqueta: 'Día', icono: 'bi-calendar-day' },
+  { valor: 'semana', etiqueta: 'Semana', icono: 'bi-calendar-week' },
+];
 
 const bloqueInicial = (data) => {
   if (data.mis_turnos?.length) return data.mis_turnos[0].id_bloque;
@@ -146,7 +129,7 @@ const DetalleBloque = ({ bloque, fecha, generadoEn }) => (
 
 const VistaDia = () => {
   const navigate = useNavigate();
-  const hoy = aISO(new Date());
+  const hoy = hoyISO();
   const [fecha, setFecha] = useState(hoy);
   const [data, setData] = useState(null);
   const [bloqueActivo, setBloqueActivo] = useState(null);
@@ -288,6 +271,7 @@ const VistaDia = () => {
 
 const VisualizacionHorario = () => {
   const [usuario, setUsuario] = useState(null);
+  const [modo, setModo] = useState('dia');
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -334,11 +318,34 @@ const VisualizacionHorario = () => {
       </div>
 
       <div className="up-hero">
-        <h1>Horario del día</h1>
-        <p>Asignaciones por turno, área y función operativa</p>
+        <h1>{modo === 'semana' ? 'Horario semanal' : 'Horario del día'}</h1>
+        <p>
+          {modo === 'dia'
+            ? 'Asignaciones por turno, área y función operativa'
+            : Number(usuario?.id_rol) === ROL_TRABAJADOR
+              ? 'Tus turnos de lunes a domingo: entrada, salida y descansos'
+              : 'Asignaciones de la semana por función y turno'}
+        </p>
       </div>
 
-      {usuario && <VistaDia />}
+      <div className="hor-modo-barra">
+        <div className="hor-modo" role="tablist" aria-label="Vista del horario">
+          {MODOS.map((m) => (
+            <button
+              key={m.valor}
+              type="button"
+              role="tab"
+              aria-selected={modo === m.valor}
+              className={`hor-modo-opcion ${modo === m.valor ? 'activo' : ''}`}
+              onClick={() => setModo(m.valor)}
+            >
+              <i className={`bi ${m.icono}`}></i> {m.etiqueta}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {usuario && (modo === 'semana' ? <VistaSemana /> : <VistaDia />)}
     </div>
   );
 };
