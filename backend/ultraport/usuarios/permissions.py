@@ -11,6 +11,8 @@ class Permisos:
     PLANIFICAR_TURNOS = 'horario.planificar'
     VER_HORARIO = 'horario.ver'
     REPORTES_EXPORTACION = 'reportes.exportar'
+    # RUT y correo de otros trabajadores en los reportes exportados.
+    VER_DATOS_PERSONALES = 'reportes.datos_personales'
 
 
 PERMISOS_POR_ROL = {
@@ -18,6 +20,8 @@ PERMISOS_POR_ROL = {
         Permisos.USUARIOS_GESTIONAR,
         Permisos.GESTIONAR_INASISTENCIA,
         Permisos.VER_HORARIO,
+        Permisos.REPORTES_EXPORTACION,
+        Permisos.VER_DATOS_PERSONALES,
     },
     Roles.PLANIFICADOR: {
         Permisos.USUARIOS_GESTIONAR,
@@ -25,7 +29,7 @@ PERMISOS_POR_ROL = {
         Permisos.PLANIFICAR_TURNOS,
         Permisos.VER_HORARIO,
         Permisos.REPORTES_EXPORTACION,
-
+        Permisos.VER_DATOS_PERSONALES,
     },
     Roles.TRABAJADOR: {
         Permisos.NOTIFICAR_INASISTENCIA,
@@ -33,6 +37,10 @@ PERMISOS_POR_ROL = {
         Permisos.REPORTES_EXPORTACION,
     },
 }
+
+def tiene_permiso(usuario, permiso):
+    return permiso in PERMISOS_POR_ROL.get(usuario.id_rol_id, set())
+
 
 class TienePermiso(BasePermission):
     message = 'No tienes permiso para realizar esta acción.'

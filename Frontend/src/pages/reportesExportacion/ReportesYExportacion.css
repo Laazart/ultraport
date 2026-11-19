@@ -22,7 +22,7 @@
 
 .rep-campo .gm-input { max-width: none; width: 100%; }
 
-.rep-acciones { margin-top: 4px; }
+.rep-acciones { margin-top: 4px; display: flex; flex-wrap: wrap; gap: 8px; }
 
 .rep-aviso {
   margin: 0;

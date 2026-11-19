@@ -4,7 +4,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
-from usuarios.permissions import Permisos, TienePermiso
+from usuarios.permissions import Permisos, TienePermiso, tiene_permiso
 from .models import NotificacionInasistencia, Malla, Turno, Asignacion
 from datetime import timedelta, date
 from .plantillas import PLANTILLA_BASE, BLOQUES_PLANTILLA
@@ -20,7 +20,7 @@ from .services import (
     asignar_usuario, autocompletar_malla, iniciar_planificacion, mover_asignacion,
     publicar_malla, quitar_asignacion, reemplazar_asignacion, requerimientos_desde_plantilla
 )
-from .reportes import pdf_inasistencias, pdf_malla
+from .reportes import pdf_inasistencias, pdf_malla, xlsx_inasistencias, xlsx_malla
 class MisAvisosView(generics.ListCreateAPIView):
     serializer_class = NotificacionInasistenciaSerializer
     permission_classes = [IsAuthenticated, TienePermiso]
@@ -175,9 +175,26 @@ class AsignacionViewSet(
         serializer.is_valid(raise_exception=True)
         resultado = mover_asignacion(asignacion, serializer.validated_data['id_turno'])
         return Response(AsignacionSerializer(resultado).data)
-class ReporteMallaPdfView(APIView):
+
+
+class MallasPublicadasView(APIView):
+    """Mallas publicadas que se pueden exportar (solo lectura, sin planificar)."""
     permission_classes = [IsAuthenticated, TienePermiso]
     permiso_requerido = Permisos.REPORTES_EXPORTACION
+
+    def get(self, request):
+        mallas = Malla.objects.filter(estado=Malla.Estados.PUBLICADA).order_by('-fecha')
+        return Response([
+            {'id_malla': m.id_malla, 'fecha': m.fecha, 'estado': m.estado}
+            for m in mallas
+        ])
+
+
+class ReporteMallaView(APIView):
+    """RF-19. RUT y correo solo para quien tiene VER_DATOS_PERSONALES."""
+    permission_classes = [IsAuthenticated, TienePermiso]
+    permiso_requerido = Permisos.REPORTES_EXPORTACION
+    formato = 'pdf'
 
     def get(self, request, pk):
         malla = get_object_or_404(Malla, pk=pk)
@@ -186,12 +203,19 @@ class ReporteMallaPdfView(APIView):
                 {'detail': 'Solo se puede exportar una malla publicada.'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        return pdf_malla(malla, request.query_params.get('bloque') or None)
+        generar = xlsx_malla if self.formato == 'xlsx' else pdf_malla
+        return generar(
+            malla,
+            request.query_params.get('bloque') or None,
+            completo=tiene_permiso(request.user, Permisos.VER_DATOS_PERSONALES),
+        )
 
 
-class ReporteInasistenciasPdfView(APIView):
+class ReporteInasistenciasView(APIView):
+    """RF-20 y RF-21. Incluye datos personales y motivos: solo para gestión."""
     permission_classes = [IsAuthenticated, TienePermiso]
-    permiso_requerido = Permisos.REPORTES_EXPORTACION
+    permiso_requerido = Permisos.GESTIONAR_INASISTENCIA
+    formato = 'pdf'
 
     def get(self, request):
         try:
@@ -207,4 +231,5 @@ class ReporteInasistenciasPdfView(APIView):
                 {'detail': 'La fecha "desde" no puede ser posterior a "hasta".'},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        return pdf_inasistencias(desde, hasta, request.query_params.get('estado') or None)
+        generar = xlsx_inasistencias if self.formato == 'xlsx' else pdf_inasistencias
+        return generar(desde, hasta, request.query_params.get('estado') or None)
