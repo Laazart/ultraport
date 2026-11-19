@@ -162,23 +162,43 @@ def validar_asignacion(usuario, turno, excluir_id=None):
     return errores
 
 
-def candidatos_para_turno(turno):
+def evaluar_candidatos(turno):
+    """
+    Trabajadores activos con el puesto del turno (excepto los ya asignados a él),
+    con sus horas de la semana y los motivos que impiden asignarlos.
+
+    Devuelve [(usuario, horas_semana, errores)]: primero los asignables
+    (por horas y apellido) y luego los no asignables (por apellido).
+    """
     fecha = turno.id_malla.fecha
+    ya_asignados = Asignacion.objects.filter(
+        id_turno=turno, estado__in=ESTADOS_ACTIVOS,
+    ).values('id_usuario')
     usuarios = (
         Usuario.objects
         .filter(
             id_rol_id=Roles.TRABAJADOR,
             estado='activo',
             is_active=True,
-            id_contrato__isnull=False,
+            pk__in=UsuarioPuesto.objects.filter(id_puesto=turno.id_puesto_id).values('id_usuario'),
         )
+        .exclude(pk__in=ya_asignados)
         .select_related('id_contrato')
     )
 
-    aptos = []
-    for usuario in usuarios:
-        if not validar_asignacion(usuario, turno):
-            aptos.append((horas_de_la_semana(usuario, fecha), usuario))
+    evaluados = [
+        (usuario, horas_de_la_semana(usuario, fecha), validar_asignacion(usuario, turno))
+        for usuario in usuarios
+    ]
+    evaluados.sort(key=lambda e: (
+        bool(e[2]),
+        0 if e[2] else e[1],
+        e[0].apellidos,
+        e[0].nombres,
+    ))
+    return evaluados
 
-    aptos.sort(key=lambda par: (par[0], par[1].apellidos, par[1].nombres))
-    return aptos
+
+def candidatos_para_turno(turno):
+    """[(horas_semana, usuario)] de los trabajadores asignables, por horas y apellido."""
+    return [(horas, usuario) for usuario, horas, errores in evaluar_candidatos(turno) if not errores]

@@ -1,6 +1,5 @@
 from rest_framework import serializers
-from .models import NotificacionInasistencia, BloqueTurno, Malla, Turno, Asignacion
-from rest_framework import serializers
+from .models import NotificacionInasistencia, BloqueTurno, Malla, Turno, Asignacion, ESTADOS_ACTIVOS
 
 from usuarios.models import Usuario
 
@@ -132,7 +131,7 @@ class TurnoSerializer(serializers.ModelSerializer):
         ]
 
     def get_asignaciones(self, obj):
-        activas = obj.asignaciones.filter(estado__in=['borrador', 'confirmado'])
+        activas = obj.asignaciones.filter(estado__in=ESTADOS_ACTIVOS)
         return AsignacionSerializer(activas, many=True).data
 class RequerimientoTurnoSerializer(serializers.ModelSerializer):
     class Meta:
@@ -155,3 +154,9 @@ class IniciarPlanificacionSerializer(serializers.Serializer):
 
 class ReemplazarAsignacionSerializer(serializers.Serializer):
     id_usuario = serializers.PrimaryKeyRelatedField(queryset=Usuario.objects.all())
+
+
+class MoverAsignacionSerializer(serializers.Serializer):
+    id_turno = serializers.PrimaryKeyRelatedField(
+        queryset=Turno.objects.select_related('id_malla', 'id_bloque', 'id_puesto')
+    )
