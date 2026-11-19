@@ -11,13 +11,13 @@ from .plantillas import PLANTILLA_BASE, BLOQUES_PLANTILLA
 from django.utils import timezone
 from rest_framework.decorators import action
 
-from .reglas import candidatos_para_turno
+from .reglas import evaluar_candidatos
 from .serializers import (
-    AsignacionSerializer, IniciarPlanificacionSerializer, MallaSerializer,
+    AsignacionSerializer, IniciarPlanificacionSerializer, MallaSerializer, MoverAsignacionSerializer,
     ReemplazarAsignacionSerializer, TurnoSerializer, CambiarEstadoSerializer, NotificacionInasistenciaSerializer
 )
 from .services import (
-    asignar_usuario, autocompletar_malla, iniciar_planificacion,
+    asignar_usuario, autocompletar_malla, iniciar_planificacion, mover_asignacion,
     publicar_malla, quitar_asignacion, reemplazar_asignacion, requerimientos_desde_plantilla
 )
 from .reportes import pdf_inasistencias, pdf_malla
@@ -133,8 +133,10 @@ class TurnoViewSet(viewsets.ReadOnlyModelViewSet):
                 'correo': usuario.correo,
                 'telefono': usuario.telefono,
                 'horas_semana': horas,
+                'asignable': not errores,
+                'motivos': errores,
             }
-            for horas, usuario in candidatos_para_turno(turno)
+            for usuario, horas, errores in evaluar_candidatos(turno)
         ]
         return Response(data)
 
@@ -165,6 +167,14 @@ class AsignacionViewSet(
         serializer.is_valid(raise_exception=True)
         nueva = reemplazar_asignacion(asignacion, serializer.validated_data['id_usuario'])
         return Response(AsignacionSerializer(nueva).data)
+
+    @action(detail=True, methods=['post'])
+    def mover(self, request, pk=None):
+        asignacion = self.get_object()
+        serializer = MoverAsignacionSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        resultado = mover_asignacion(asignacion, serializer.validated_data['id_turno'])
+        return Response(AsignacionSerializer(resultado).data)
 class ReporteMallaPdfView(APIView):
     permission_classes = [IsAuthenticated, TienePermiso]
     permiso_requerido = Permisos.REPORTES_EXPORTACION

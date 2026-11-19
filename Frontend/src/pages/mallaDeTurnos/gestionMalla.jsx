@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useEffectEvent, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import authService from '../../services/auth';
 import TextoRol from '../../components/TextoRol';
 import horarioService from '../../services/horario';
@@ -9,12 +9,7 @@ import '../home/home.css';
 import './gestionMalla.css';
 
 const RUTA_HOME = '/home';
-
-const ETIQUETAS_BLOQUE = {
-  primer_turno: { orden: 1, horario: '08:00 – 13:00' },
-  segundo_turno: { orden: 2, horario: '14:00 – 22:00' },
-  tercer_turno: { orden: 3, horario: '23:00 – 07:00 (+1 día)' },
-};
+const FECHA_ISO = /^\d{4}-\d{2}-\d{2}$/;
 
 const ETIQUETAS_ESTADO = {
   borrador: 'Borrador',
@@ -36,6 +31,23 @@ const formatearFecha = (iso) => {
   return `${d}-${m}-${a}`;
 };
 
+const hhmm = (hora) => (hora ? hora.slice(0, 5) : '');
+
+// Horario del bloque según el API (cruza medianoche si termina antes de empezar).
+const horarioBloque = (bloque) => {
+  if (!bloque) return '';
+  const cruza = bloque.hora_termino <= bloque.hora_inicio;
+  return `${hhmm(bloque.hora_inicio)} – ${hhmm(bloque.hora_termino)}${cruza ? ' (+1 día)' : ''}`;
+};
+
+const nombreTurno = (bloque) => `${bloque.orden_secuencia}° turno`;
+
+const estadoCupos = (asignados, cupos) => {
+  if (asignados > cupos) return 'excedido';
+  if (asignados === cupos) return 'completo';
+  return '';
+};
+
 const bloqueInicialDe = (m) => {
   const con = m.turnos.find((t) => t.asignaciones.length < t.cupos);
   return (con ?? m.turnos[0])?.bloque.nombre_bloque ?? 'primer_turno';
@@ -52,6 +64,21 @@ const EstadoVacio = ({ icono, texto }) => (
   </div>
 );
 
+// Los cupos son referencia: se muestra "x / y" y un aviso si se exceden.
+const Cupos = ({ asignados, cupos, sufijo = '' }) => {
+  const estado = estadoCupos(asignados, cupos);
+  return (
+    <span
+      className={`gm-cupos ${estado}`}
+      title={estado === 'excedido' ? 'Supera los cupos de referencia' : undefined}
+    >
+      {estado === 'excedido' && <i className="bi bi-exclamation-triangle"></i>}
+      {asignados} / {cupos}
+      {sufijo}
+    </span>
+  );
+};
+
 const GestionMalla = () => {
   const [usuario, setUsuario] = useState(null);
   const [mallas, setMallas] = useState([]);
@@ -59,6 +86,7 @@ const GestionMalla = () => {
   const [malla, setMalla] = useState(null);
   const [fecha, setFecha] = useState('');
   const [error, setError] = useState('');
+  const [aviso, setAviso] = useState('');
   const [cargando, setCargando] = useState(false);
   // Qué botón disparó la operación en curso, para mostrar su spinner.
   const [accion, setAccion] = useState(null);
@@ -66,21 +94,10 @@ const GestionMalla = () => {
   const [turnoSeleccionado, setTurnoSeleccionado] = useState(null);
   const [candidatos, setCandidatos] = useState([]);
   const [cargandoCandidatos, setCargandoCandidatos] = useState(false);
+  // Asignación que se está moviendo: { id, destino }.
+  const [moviendo, setMoviendo] = useState(null);
+  const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
-
-  useEffect(() => {
-    const currentUser = authService.getCurrentUser();
-    if (!currentUser) {
-      navigate('/login');
-      return;
-    }
-    setUsuario(currentUser);
-    horarioService
-      .listarMallas()
-      .then(setMallas)
-      .catch((err) => setError(mensajeError(err, 'No se pudieron cargar las mallas.')))
-      .finally(() => setCargandoMallas(false));
-  }, [navigate]);
 
   const ejecutar = async (fn, clave = null) => {
     setError('');
@@ -98,19 +115,83 @@ const GestionMalla = () => {
 
   const abrirMalla = (m) => {
     setMalla(m);
+    setAviso('');
     setBloqueActivo(bloqueInicialDe(m));
     setTurnoSeleccionado(null);
     setCandidatos([]);
+    setMoviendo(null);
+    setMallas((prev) => prev.map((x) => (x.id_malla === m.id_malla ? { ...x, estado: m.estado } : x)));
+    if (searchParams.get('fecha') !== m.fecha) {
+      setSearchParams({ fecha: m.fecha }, { replace: true });
+    }
   };
 
   const seleccionarMalla = (id) =>
     ejecutar(async () => abrirMalla(await horarioService.obtenerMalla(id)));
 
+  // ?fecha=YYYY-MM-DD (p. ej. desde Visualización de horario) abre la malla de
+  // esa fecha o, si no existe, deja la fecha lista para iniciar la planificación.
+  const abrirDesdeEnlace = useEffectEvent((lista) => {
+    const fechaEnlace = searchParams.get('fecha');
+    if (!fechaEnlace) return;
+    if (!FECHA_ISO.test(fechaEnlace)) {
+      setAviso('La fecha indicada en el enlace no es válida (AAAA-MM-DD).');
+      return;
+    }
+    const encontrada = lista.find((m) => m.fecha === fechaEnlace);
+    if (encontrada) {
+      seleccionarMalla(encontrada.id_malla);
+    } else {
+      setFecha(fechaEnlace);
+      setAviso(`No hay malla para el ${formatearFecha(fechaEnlace)}; puedes iniciarla.`);
+    }
+  });
+
+  useEffect(() => {
+    const currentUser = authService.getCurrentUser();
+    if (!currentUser) {
+      navigate('/login');
+      return;
+    }
+    setUsuario(currentUser);
+    horarioService
+      .listarMallas()
+      .then((lista) => {
+        setMallas(lista);
+        abrirDesdeEnlace(lista);
+      })
+      .catch((err) => setError(mensajeError(err, 'No se pudieron cargar las mallas.')))
+      .finally(() => setCargandoMallas(false));
+  }, [navigate]);
+
+  const recargarCandidatos = async (idTurno) => {
+    setCargandoCandidatos(true);
+    try {
+      setCandidatos(await horarioService.candidatosTurno(idTurno));
+    } catch (err) {
+      setError(mensajeError(err));
+      setCandidatos([]);
+    } finally {
+      setCargandoCandidatos(false);
+    }
+  };
+
+  // Recarga la malla tras un cambio y mantiene el turno seleccionado y sus candidatos.
+  const refrescarMalla = async () => {
+    const actualizada = await horarioService.obtenerMalla(malla.id_malla);
+    setMalla(actualizada);
+    if (turnoSeleccionado) {
+      const idTurno = turnoSeleccionado.id_turno;
+      setTurnoSeleccionado(actualizada.turnos.find((t) => t.id_turno === idTurno) ?? null);
+      await recargarCandidatos(idTurno);
+    }
+  };
+
   const handleIniciarPlantilla = () =>
     ejecutar(async () => {
       const nueva = await horarioService.iniciarDesdePlantilla(fecha);
-      abrirMalla(nueva);
       setMallas((prev) => [nueva, ...prev]);
+      abrirMalla(nueva);
     }, 'iniciar');
 
   const handleAutocompletar = () =>
@@ -125,48 +206,39 @@ const GestionMalla = () => {
   const handleQuitar = (idAsignacion) =>
     ejecutar(async () => {
       await horarioService.quitarAsignacion(idAsignacion);
-      const actualizada = await horarioService.obtenerMalla(malla.id_malla);
-      setMalla(actualizada);
-      if (turnoSeleccionado) {
-        const t = actualizada.turnos.find((x) => x.id_turno === turnoSeleccionado.id_turno);
-        setTurnoSeleccionado(t ?? null);
-      }
+      await refrescarMalla();
     }, `quitar-${idAsignacion}`);
-
-  const seleccionarTurno = async (turno) => {
-    setTurnoSeleccionado(turno);
-    setCargandoCandidatos(true);
-    try {
-      setCandidatos(await horarioService.candidatosTurno(turno.id_turno));
-    } catch (err) {
-      setError(mensajeError(err));
-      setCandidatos([]);
-    } finally {
-      setCargandoCandidatos(false);
-    }
-  };
 
   const handleAsignar = (idUsuario) =>
     ejecutar(async () => {
-      const idTurno = turnoSeleccionado.id_turno;
-      await horarioService.asignar(idTurno, idUsuario);
-      const actualizada = await horarioService.obtenerMalla(malla.id_malla);
-      setMalla(actualizada);
-      setTurnoSeleccionado(actualizada.turnos.find((t) => t.id_turno === idTurno) ?? null);
-      setCandidatos(await horarioService.candidatosTurno(idTurno));
+      await horarioService.asignar(turnoSeleccionado.id_turno, idUsuario);
+      await refrescarMalla();
     }, `asignar-${idUsuario}`);
+
+  const handleMover = () =>
+    ejecutar(async () => {
+      await horarioService.moverAsignacion(moviendo.id, Number(moviendo.destino));
+      setMoviendo(null);
+      await refrescarMalla();
+    }, `mover-${moviendo.id}`);
+
+  const seleccionarTurno = (turno) => {
+    setTurnoSeleccionado(turno);
+    recargarCandidatos(turno.id_turno);
+  };
 
   const handleLogout = async () => {
     await authService.logout();
     navigate('/login');
   };
 
-  const editable = malla && malla.estado !== 'publicada' && !cargando;
+  const publicada = malla?.estado === 'publicada';
+  const editable = Boolean(malla) && !cargando;
 
-  const bloquesPresentes = malla
-    ? Object.keys(agruparPor(malla.turnos, (t) => t.bloque.nombre_bloque)).sort(
-        (a, b) => ETIQUETAS_BLOQUE[a].orden - ETIQUETAS_BLOQUE[b].orden
-      )
+  const bloques = malla
+    ? Object.values(
+        Object.fromEntries(malla.turnos.map((t) => [t.bloque.nombre_bloque, t.bloque]))
+      ).sort((a, b) => a.orden_secuencia - b.orden_secuencia)
     : [];
 
   const turnosDelBloque = malla
@@ -177,9 +249,21 @@ const GestionMalla = () => {
 
   const totalAsignados = malla ? malla.turnos.reduce((n, t) => n + t.asignaciones.length, 0) : 0;
   const totalCupos = malla ? malla.turnos.reduce((n, t) => n + t.cupos, 0) : 0;
+  const turnosExcedidos = malla
+    ? malla.turnos.filter((t) => t.asignaciones.length > t.cupos).length
+    : 0;
 
-  const turnoLleno =
-    turnoSeleccionado && turnoSeleccionado.asignaciones.length >= turnoSeleccionado.cupos;
+  const disponibles = candidatos.filter((c) => c.asignable);
+  const noAsignables = candidatos.filter((c) => !c.asignable);
+
+  // Destinos posibles para mover: los demás turnos de la malla, agrupados por bloque.
+  const destinosPorBloque = (idTurnoOrigen) =>
+    bloques.map((b) => ({
+      bloque: b,
+      turnos: malla.turnos.filter(
+        (t) => t.bloque.nombre_bloque === b.nombre_bloque && t.id_turno !== idTurnoOrigen
+      ),
+    }));
 
   return (
     <div className="up-shell">
@@ -218,6 +302,11 @@ const GestionMalla = () => {
         {error && (
           <div className="gm-alerta">
             <i className="bi bi-exclamation-octagon"></i> {error}
+          </div>
+        )}
+        {aviso && (
+          <div className="gm-aviso">
+            <i className="bi bi-info-circle"></i> {aviso}
           </div>
         )}
 
@@ -281,6 +370,12 @@ const GestionMalla = () => {
                   </div>
                   <div className="gm-malla-sub">
                     {totalAsignados} de {totalCupos} cupos cubiertos
+                    {turnosExcedidos > 0 && (
+                      <span className="gm-texto-excedido">
+                        {' '}· <i className="bi bi-exclamation-triangle"></i> {turnosExcedidos}{' '}
+                        turno(s) sobre el cupo
+                      </span>
+                    )}
                   </div>
                 </div>
                 <div className="gm-acciones">
@@ -295,10 +390,11 @@ const GestionMalla = () => {
                   </BotonCargando>
                   <BotonCargando
                     className="gm-btn gm-btn-primario"
-                    disabled={!editable}
+                    disabled={!editable || publicada}
                     cargando={accion === 'publicar'}
                     textoCargando="Publicando..."
                     onClick={handlePublicar}
+                    title={publicada ? 'La malla ya está publicada' : undefined}
                   >
                     <i className="bi bi-send"></i> Publicar
                   </BotonCargando>
@@ -306,21 +402,21 @@ const GestionMalla = () => {
               </div>
 
               <div className="gm-tabs" role="tablist">
-                {bloquesPresentes.map((b) => {
+                {bloques.map((b) => {
                   const total = malla.turnos
-                    .filter((t) => t.bloque.nombre_bloque === b)
+                    .filter((t) => t.bloque.nombre_bloque === b.nombre_bloque)
                     .reduce((n, t) => n + t.asignaciones.length, 0);
                   return (
                     <button
-                      key={b}
+                      key={b.nombre_bloque}
                       type="button"
                       role="tab"
-                      aria-selected={b === bloqueActivo}
-                      className={`gm-tab ${b === bloqueActivo ? 'activo' : ''}`}
-                      onClick={() => setBloqueActivo(b)}
+                      aria-selected={b.nombre_bloque === bloqueActivo}
+                      className={`gm-tab ${b.nombre_bloque === bloqueActivo ? 'activo' : ''}`}
+                      onClick={() => setBloqueActivo(b.nombre_bloque)}
                     >
-                      <span className="gm-tab-nombre">{ETIQUETAS_BLOQUE[b].orden}° turno</span>
-                      <span className="gm-tab-horario">{ETIQUETAS_BLOQUE[b].horario}</span>
+                      <span className="gm-tab-nombre">{nombreTurno(b)}</span>
+                      <span className="gm-tab-horario">{horarioBloque(b)}</span>
                       <span className="gm-tab-total">{total}</span>
                     </button>
                   );
@@ -344,11 +440,7 @@ const GestionMalla = () => {
                         >
                           <div className="gm-turno-cabecera">
                             <span className="gm-turno-puesto">{turno.puesto}</span>
-                            <span
-                              className={`gm-cupos ${turno.asignaciones.length >= turno.cupos ? 'completo' : ''}`}
-                            >
-                              {turno.asignaciones.length}/{turno.cupos}
-                            </span>
+                            <Cupos asignados={turno.asignaciones.length} cupos={turno.cupos} />
                           </div>
 
                           {turno.asignaciones.length === 0 ? (
@@ -365,42 +457,116 @@ const GestionMalla = () => {
                                     <th>Máquina</th>
                                     <th>Especialidad</th>
                                     <th>Estado</th>
-                                    {editable && <th className="gm-col-acciones"></th>}
+                                    <th className="gm-col-acciones"></th>
                                   </tr>
                                 </thead>
                                 <tbody>
-                                  {turno.asignaciones.map((a) => (
-                                    <tr key={a.id_asignacion}>
-                                      <td className="gm-nombre">{a.usuario_nombre}</td>
-                                      <td className="gm-mono">{a.rut ?? '—'}</td>
-                                      <td>{a.correo ?? '—'}</td>
-                                      <td>{a.contrato ?? '—'}</td>
-                                      <td>{a.maquina ?? '—'}</td>
-                                      <td>{a.especialidad ?? '—'}</td>
-                                      <td>
-                                        <EstadoBadge
-                                          estado={malla.estado === 'publicada' ? 'confirmado' : a.estado}
-                                        />
-                                      </td>
-                                      {editable && (
-                                        <td className="gm-col-acciones">
-                                          <BotonCargando
-                                            className="gm-btn-quitar"
-                                            title="Quitar de este turno"
-                                            disabled={cargando}
-                                            cargando={accion === `quitar-${a.id_asignacion}`}
-                                            textoCargando={null}
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              handleQuitar(a.id_asignacion);
-                                            }}
-                                          >
-                                            <i className="bi bi-x-lg"></i>
-                                          </BotonCargando>
+                                  {turno.asignaciones.map((a) => {
+                                    const enMovimiento = moviendo?.id === a.id_asignacion;
+                                    return [
+                                      <tr key={a.id_asignacion}>
+                                        <td className="gm-nombre">{a.usuario_nombre}</td>
+                                        <td className="gm-mono">{a.rut ?? '—'}</td>
+                                        <td>{a.correo ?? '—'}</td>
+                                        <td>{a.contrato ?? '—'}</td>
+                                        <td>{a.maquina ?? '—'}</td>
+                                        <td>{a.especialidad ?? '—'}</td>
+                                        <td>
+                                          <EstadoBadge estado={a.estado} />
                                         </td>
-                                      )}
-                                    </tr>
-                                  ))}
+                                        <td className="gm-col-acciones">
+                                          <div className="gm-acciones-fila">
+                                            <BotonCargando
+                                              className={`gm-btn-icono ${enMovimiento ? 'activo' : ''}`}
+                                              title="Mover a otro turno"
+                                              disabled={!editable}
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                setMoviendo(
+                                                  enMovimiento ? null : { id: a.id_asignacion, destino: '' }
+                                                );
+                                              }}
+                                            >
+                                              <i className="bi bi-arrow-left-right"></i>
+                                            </BotonCargando>
+                                            <BotonCargando
+                                              className="gm-btn-quitar"
+                                              title={
+                                                publicada
+                                                  ? 'Quitar (quedará como reemplazado)'
+                                                  : 'Quitar de este turno'
+                                              }
+                                              disabled={!editable}
+                                              cargando={accion === `quitar-${a.id_asignacion}`}
+                                              textoCargando={null}
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleQuitar(a.id_asignacion);
+                                              }}
+                                            >
+                                              <i className="bi bi-x-lg"></i>
+                                            </BotonCargando>
+                                          </div>
+                                        </td>
+                                      </tr>,
+                                      enMovimiento && (
+                                        <tr key={`mover-${a.id_asignacion}`} className="gm-fila-mover">
+                                          <td colSpan={8} onClick={(e) => e.stopPropagation()}>
+                                            <div className="gm-mover">
+                                              <span>
+                                                Mover a <strong>{a.usuario_nombre}</strong> a:
+                                              </span>
+                                              <select
+                                                className="gm-input"
+                                                value={moviendo.destino}
+                                                onChange={(e) =>
+                                                  setMoviendo({ ...moviendo, destino: e.target.value })
+                                                }
+                                              >
+                                                <option value="">Selecciona un turno…</option>
+                                                {destinosPorBloque(turno.id_turno).map(({ bloque, turnos }) =>
+                                                  turnos.length === 0 ? null : (
+                                                    <optgroup
+                                                      key={bloque.nombre_bloque}
+                                                      label={`${nombreTurno(bloque)} (${horarioBloque(bloque)})`}
+                                                    >
+                                                      {turnos.map((t) => (
+                                                        <option key={t.id_turno} value={t.id_turno}>
+                                                          {nombreTurno(bloque)} · {t.area} · {t.puesto} (
+                                                          {t.asignaciones.length}/{t.cupos})
+                                                        </option>
+                                                      ))}
+                                                    </optgroup>
+                                                  )
+                                                )}
+                                              </select>
+                                              <BotonCargando
+                                                className="gm-btn gm-btn-primario"
+                                                disabled={!editable || !moviendo.destino}
+                                                cargando={accion === `mover-${a.id_asignacion}`}
+                                                textoCargando="Moviendo..."
+                                                onClick={handleMover}
+                                              >
+                                                Confirmar
+                                              </BotonCargando>
+                                              <BotonCargando
+                                                className="gm-btn"
+                                                disabled={cargando}
+                                                onClick={() => setMoviendo(null)}
+                                              >
+                                                Cancelar
+                                              </BotonCargando>
+                                            </div>
+                                            {publicada && (
+                                              <p className="gm-mover-nota">
+                                                La asignación actual quedará como reemplazada.
+                                              </p>
+                                            )}
+                                          </td>
+                                        </tr>
+                                      ),
+                                    ];
+                                  })}
                                 </tbody>
                               </table>
                             </div>
@@ -415,7 +581,7 @@ const GestionMalla = () => {
 
             <aside className="gm-panel gm-candidatos">
               <div className="gm-panel-titulo">
-                <i className="bi bi-person-plus"></i> Candidatos disponibles
+                <i className="bi bi-person-plus"></i> Candidatos
               </div>
 
               {!turnoSeleccionado ? (
@@ -425,44 +591,78 @@ const GestionMalla = () => {
                   <div className="gm-candidatos-turno">
                     <strong>{turnoSeleccionado.puesto}</strong>
                     <span>
-                      {turnoSeleccionado.area} ·{' '}
-                      {ETIQUETAS_BLOQUE[turnoSeleccionado.bloque.nombre_bloque]?.horario}
+                      {turnoSeleccionado.area} · {horarioBloque(turnoSeleccionado.bloque)}
                     </span>
-                    <span className={`gm-cupos ${turnoLleno ? 'completo' : ''}`}>
-                      {turnoSeleccionado.asignaciones.length}/{turnoSeleccionado.cupos} cupos
-                    </span>
+                    <Cupos
+                      asignados={turnoSeleccionado.asignaciones.length}
+                      cupos={turnoSeleccionado.cupos}
+                      sufijo=" cupos"
+                    />
                   </div>
 
                   {cargandoCandidatos ? (
                     <p className="gm-muted">Buscando candidatos...</p>
                   ) : candidatos.length === 0 ? (
-                    <p className="gm-muted">No hay trabajadores aptos para este turno.</p>
+                    <p className="gm-muted">No hay más trabajadores con este puesto.</p>
                   ) : (
-                    <ul className="gm-lista-candidatos">
-                      {candidatos.map((c) => (
-                        <li key={c.id_usuario}>
-                          <div className="gm-candidato-info">
-                            <div className="gm-nombre">{c.nombre}</div>
-                            <div className="gm-candidato-meta">
-                              <span className="gm-mono">{c.rut ?? '—'}</span>
-                              <span>{c.correo ?? '—'}</span>
-                              <span>{c.telefono ?? 'Sin teléfono'}</span>
-                            </div>
-                            <div className="gm-candidato-horas">
-                              <i className="bi bi-clock"></i> {c.horas_semana} h esta semana
-                            </div>
-                          </div>
-                          <BotonCargando
-                            className="gm-btn gm-btn-primario"
-                            disabled={!editable || turnoLleno || cargando}
-                            cargando={accion === `asignar-${c.id_usuario}`}
-                            onClick={() => handleAsignar(c.id_usuario)}
-                          >
-                            Asignar
-                          </BotonCargando>
-                        </li>
-                      ))}
-                    </ul>
+                    <>
+                      <h4 className="gm-candidatos-seccion">Disponibles ({disponibles.length})</h4>
+                      {disponibles.length === 0 ? (
+                        <p className="gm-muted">No hay trabajadores aptos para este turno.</p>
+                      ) : (
+                        <ul className="gm-lista-candidatos">
+                          {disponibles.map((c) => (
+                            <li key={c.id_usuario}>
+                              <div className="gm-candidato-info">
+                                <div className="gm-nombre">{c.nombre}</div>
+                                <div className="gm-candidato-meta">
+                                  <span className="gm-mono">{c.rut ?? '—'}</span>
+                                  <span>{c.correo ?? '—'}</span>
+                                  <span>{c.telefono ?? 'Sin teléfono'}</span>
+                                </div>
+                                <div className="gm-candidato-horas">
+                                  <i className="bi bi-clock"></i> {c.horas_semana} h esta semana
+                                </div>
+                              </div>
+                              <BotonCargando
+                                className="gm-btn gm-btn-primario"
+                                disabled={!editable}
+                                cargando={accion === `asignar-${c.id_usuario}`}
+                                onClick={() => handleAsignar(c.id_usuario)}
+                              >
+                                Asignar
+                              </BotonCargando>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+
+                      {noAsignables.length > 0 && (
+                        <>
+                          <h4 className="gm-candidatos-seccion">No asignables ({noAsignables.length})</h4>
+                          <ul className="gm-lista-candidatos">
+                            {noAsignables.map((c) => (
+                              <li key={c.id_usuario} className="gm-candidato-bloqueado">
+                                <div className="gm-candidato-info">
+                                  <div className="gm-nombre">
+                                    <i className="bi bi-slash-circle"></i> {c.nombre}
+                                  </div>
+                                  <div className="gm-candidato-meta">
+                                    <span className="gm-mono">{c.rut ?? '—'}</span>
+                                    <span>{c.horas_semana} h esta semana</span>
+                                  </div>
+                                  <ul className="gm-motivos">
+                                    {c.motivos.map((motivo) => (
+                                      <li key={motivo}>{motivo}</li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              </li>
+                            ))}
+                          </ul>
+                        </>
+                      )}
+                    </>
                   )}
                 </>
               )}

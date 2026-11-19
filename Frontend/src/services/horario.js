@@ -67,25 +67,23 @@ const horarioService = {
     );
     return response.data;
   },
-    iniciarDesdePlantilla: async (fecha, idBloque = 1) => {
+
+  moverAsignacion: async (idAsignacion, idTurno) => {
+    const response = await http.post(
+      `${API_URL}asignaciones/${idAsignacion}/mover/`,
+      { id_turno: idTurno },
+      getAuthHeaders()
+    );
+    return response.data;
+  },
+
+  iniciarDesdePlantilla: async (fecha, idBloque = 1) => {
     const body = { id_bloque: idBloque };
     if (fecha) body.fecha = fecha;
     const response = await http.post(`${API_URL}mallas/iniciar-plantilla/`, body, getAuthHeaders());
     return response.data;
   },
-  candidatosTurno: async (idTurno) => {
-  const response = await http.get(`${API_URL}turnos/${idTurno}/candidatos/`, getAuthHeaders());
-  return response.data;
-},
 
-asignar: async (idTurno, idUsuario) => {
-  const response = await http.post(
-    `${API_URL}asignaciones/`,
-    { id_turno: idTurno, id_usuario: idUsuario },
-    getAuthHeaders()
-  );
-  return response.data;
-},
 descargarArchivo: async (url, params, nombre) => {
   try {
     const response = await http.get(`${API_URL}${url}`, {
