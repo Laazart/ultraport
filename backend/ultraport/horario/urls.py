@@ -1,7 +1,7 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 
-from .views import AvisosListView, CambiarEstadoView, MisAvisosView, AsignacionViewSet, MallaViewSet, TurnoViewSet,MallasPublicadasView, ReporteInasistenciasView, ReporteMallaView
+from .views import AvisosListView, BloquesView, CambiarEstadoView, MisAvisosView, AsignacionViewSet, MallaViewSet, TurnoViewSet,MallasPublicadasView, ReporteInasistenciasView, ReporteMallaView
 router = DefaultRouter()
 router.register('mallas', MallaViewSet, basename='mallas')
 router.register('turnos', TurnoViewSet, basename='turnos')
@@ -11,6 +11,7 @@ urlpatterns = [
     path('inasistencias/', AvisosListView.as_view(), name='inasistencias'),
     path('inasistencias/mis-avisos/', MisAvisosView.as_view(), name='mis_inasistencias'),
     path('inasistencias/<int:pk>/estado/', CambiarEstadoView.as_view(), name='inasistencia_estado'),
+    path('bloques/', BloquesView.as_view(), name='bloques'),
     path('reportes/mallas/', MallasPublicadasView.as_view(), name='reporte-mallas'),
     path('reportes/malla/<int:pk>/pdf/', ReporteMallaView.as_view(formato='pdf'), name='reporte-malla-pdf'),
     path('reportes/malla/<int:pk>/xlsx/', ReporteMallaView.as_view(formato='xlsx'), name='reporte-malla-xlsx'),

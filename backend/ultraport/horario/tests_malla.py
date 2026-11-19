@@ -4,6 +4,7 @@ from datetime import date, timedelta
 from itertools import count
 
 from django.test import TestCase
+from django.utils import timezone
 from rest_framework.exceptions import ValidationError
 from rest_framework.test import APITestCase
 
@@ -13,6 +14,7 @@ from usuarios.models import (
 from usuarios.permissions import Roles
 from usuarios.validar_rut import calcular_digito_verificador
 from .models import Asignacion, BloqueTurno, Malla, NotificacionInasistencia, Turno
+from .plantillas import PLANTILLA_BASE
 from .serializers import TurnoSerializer
 from .services import (
     asignar_usuario, autocompletar_malla, mover_asignacion, publicar_malla, quitar_asignacion,
@@ -371,3 +373,85 @@ class MallaApiTests(_BaseMalla, APITestCase):
         self.assertEqual(self.client.get(f'/api/turnos/{turno.pk}/candidatos/').status_code, 403)
         resp = self.client.post(f'/api/asignaciones/{a.pk}/mover/', {'id_turno': turno.pk}, format='json')
         self.assertEqual(resp.status_code, 403)
+
+
+class IniciarPlantillaApiTests(_BaseMalla, APITestCase):
+    """RF-16: iniciar la malla del día desde la plantilla y elegir turno."""
+
+    URL = '/api/mallas/iniciar-plantilla/'
+
+    def setUp(self):
+        self._preparar()
+        self.encargado = Usuario.objects.create_user(
+            'encargado-rf16@test.cl', _rut_valido(), 'Ana', 'Planificadora', 'clave-segura-123',
+            id_rol=Rol.objects.get(pk=Roles.PLANIFICADOR),
+        )
+        self.client.force_authenticate(self.encargado)
+        self.futura = timezone.localdate() + timedelta(days=30)
+
+    def _iniciar(self, fecha=None):
+        return self.client.post(self.URL, {'fecha': fecha.isoformat()} if fecha else {}, format='json')
+
+    def test_crea_la_malla_con_los_tres_bloques(self):
+        resp = self._iniciar(self.futura)
+        self.assertEqual(resp.status_code, 201)
+        malla = Malla.objects.get(pk=resp.data['id_malla'])
+        self.assertEqual(malla.fecha, self.futura)
+        por_bloque = Counter(malla.turnos.values_list('id_bloque__orden_secuencia', flat=True))
+        self.assertEqual(set(por_bloque), {1, 2, 3})
+        for orden in (1, 2, 3):
+            self.assertEqual(por_bloque[orden], len(PLANTILLA_BASE))
+        ordenes_api = {t['bloque']['orden_secuencia'] for t in resp.data['turnos']}
+        self.assertEqual(ordenes_api, {1, 2, 3})
+
+    def test_fecha_con_malla_existente_devuelve_la_misma_sin_duplicar(self):
+        primera = self._iniciar(self.futura)
+        turnos_antes = Turno.objects.count()
+
+        segunda = self._iniciar(self.futura)
+
+        self.assertEqual(segunda.status_code, 200)
+        self.assertEqual(segunda.data['id_malla'], primera.data['id_malla'])
+        self.assertEqual(Malla.objects.filter(fecha=self.futura).count(), 1)
+        self.assertEqual(Turno.objects.count(), turnos_antes)
+        self.assertEqual(len(segunda.data['turnos']), len(primera.data['turnos']))
+
+    def test_malla_existente_de_hoy_se_abre_aunque_no_sea_futura(self):
+        hoy = timezone.localdate()
+        existente = self._malla(hoy, publicada=True)
+        self._turno(existente, self.primero)
+
+        resp = self._iniciar(hoy)
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.data['id_malla'], existente.pk)
+        self.assertEqual(resp.data['estado'], Malla.Estados.PUBLICADA)
+
+    def test_fecha_pasada_sin_malla_sigue_rechazada(self):
+        resp = self._iniciar(timezone.localdate() - timedelta(days=1))
+        self.assertEqual(resp.status_code, 400)
+        self.assertFalse(Malla.objects.exists())
+
+    def test_sin_fecha_usa_manana(self):
+        resp = self._iniciar()
+        self.assertEqual(resp.status_code, 201)
+        self.assertEqual(resp.data['fecha'], (timezone.localdate() + timedelta(days=1)).isoformat())
+
+    def test_fecha_invalida_400_y_no_500(self):
+        resp = self.client.post(self.URL, {'fecha': '2026-13-45'}, format='json')
+        self.assertEqual(resp.status_code, 400)
+        self.assertIn('fecha', resp.data)
+
+    def test_trabajador_no_puede_iniciar(self):
+        self.client.force_authenticate(self._trabajador())
+        self.assertEqual(self._iniciar(self.futura).status_code, 403)
+
+    def test_catalogo_de_bloques_con_horarios_en_orden(self):
+        resp = self.client.get('/api/bloques/')
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual([b['orden_secuencia'] for b in resp.data], [1, 2, 3])
+        for b in resp.data:
+            self.assertTrue(b['hora_inicio'])
+            self.assertTrue(b['hora_termino'])
+        self.client.force_authenticate(self._trabajador())
+        self.assertEqual(self.client.get('/api/bloques/').status_code, 403)

@@ -5,15 +5,16 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from django.shortcuts import get_object_or_404
 from usuarios.permissions import Permisos, TienePermiso, tiene_permiso
-from .models import NotificacionInasistencia, Malla, Turno, Asignacion
+from .models import BloqueTurno, NotificacionInasistencia, Malla, Turno, Asignacion
 from datetime import timedelta, date
 from .plantillas import PLANTILLA_BASE, BLOQUES_PLANTILLA
 from django.utils import timezone
 from rest_framework.decorators import action
 
 from .reglas import evaluar_candidatos
+from .serializers_horario import FiltroFechaSerializer
 from .serializers import (
-    AsignacionSerializer, IniciarPlanificacionSerializer, MallaSerializer, MoverAsignacionSerializer,
+    AsignacionSerializer, BloqueTurnoSerializer, IniciarPlanificacionSerializer, MallaSerializer, MoverAsignacionSerializer,
     ReemplazarAsignacionSerializer, TurnoSerializer, CambiarEstadoSerializer, NotificacionInasistenciaSerializer
 )
 from .services import (
@@ -83,8 +84,20 @@ class MallaViewSet(viewsets.ReadOnlyModelViewSet):
         )
     @action(detail=False, methods=['post'], url_path='iniciar-plantilla')
     def iniciar_plantilla(self, request):
+        """Crea la malla del día con los 3 bloques de la plantilla (201).
+
+        Si ya hay una malla para esa fecha, la devuelve sin crear nada (200),
+        para que el planificador la abra en vez de recibir un error.
+        """
         fecha_str = request.data.get('fecha')
-        fecha = date.fromisoformat(fecha_str) if fecha_str else _manana()
+        filtro = FiltroFechaSerializer(data={'fecha': fecha_str} if fecha_str else {})
+        filtro.is_valid(raise_exception=True)
+        fecha = filtro.validated_data.get('fecha') or _manana()
+
+        existente = self.get_queryset().filter(fecha=fecha).first()
+        if existente is not None:
+            return Response(MallaSerializer(existente).data, status=status.HTTP_200_OK)
+
         malla = iniciar_planificacion(
             fecha=fecha,
             requerimientos=requerimientos_desde_plantilla(),
@@ -112,6 +125,15 @@ class MallaViewSet(viewsets.ReadOnlyModelViewSet):
     def publicar(self, request, pk=None):
         malla = publicar_malla(self.get_object())
         return Response(MallaSerializer(malla).data)
+
+
+class BloquesView(generics.ListAPIView):
+    """Catálogo de turnos (1°, 2°, 3°) con sus horarios, para elegir al planificar."""
+    serializer_class = BloqueTurnoSerializer
+    permission_classes = [IsAuthenticated, TienePermiso]
+    permiso_requerido = Permisos.PLANIFICAR_TURNOS
+    pagination_class = None
+    queryset = BloqueTurno.objects.order_by('orden_secuencia')
 
 
 class TurnoViewSet(viewsets.ReadOnlyModelViewSet):

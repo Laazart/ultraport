@@ -5,6 +5,7 @@ import TextoRol from '../../components/TextoRol';
 import inasistenciasService from '../../services/inasistencias';
 import { mensajeError } from '../../services/api';
 import BotonCargando from '../../components/BotonCargando';
+import ModalConfirmacion from '../../components/ModalConfirmacion';
 import '../home/home.css';
 import './notificarInasistencia.css';
 
@@ -19,6 +20,12 @@ const ESTADOS = [
 ];
 
 const FORM_INICIAL = { motivo: '', fecha_inicio: '', fecha_fin: '', adjunto: null };
+
+// Cambios de estado que piden confirmación (RF-13).
+const CONFIRMACIONES = {
+  aprobado: { verbo: 'Aprobar', variante: 'aprobar' },
+  rechazado: { verbo: 'Rechazar', variante: 'rechazar' },
+};
 
 const formatearFecha = (iso) => {
   if (!iso) return '—';
@@ -209,6 +216,8 @@ const VistaEncargado = () => {
   const [avisos, setAvisos] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [actualizando, setActualizando] = useState(null);
+  // Cambio pendiente de confirmar: { aviso, estado } o null.
+  const [porConfirmar, setPorConfirmar] = useState(null);
   const [error, setError] = useState('');
 
   const cargar = useCallback(async () => {
@@ -245,8 +254,36 @@ const VistaEncargado = () => {
     }
   };
 
+  const pedirConfirmacion = (aviso, estado) => {
+    if (estado === aviso.estado) return;
+    setPorConfirmar({ aviso, estado });
+  };
+
+  const cancelarConfirmacion = useCallback(() => setPorConfirmar(null), []);
+
+  const confirmarCambio = async () => {
+    await handleEstado(porConfirmar.aviso, porConfirmar.estado);
+    setPorConfirmar(null);
+  };
+
+  const confirmacion = porConfirmar && CONFIRMACIONES[porConfirmar.estado];
+
   return (
     <div className="ina-panel">
+      <ModalConfirmacion
+        abierto={Boolean(porConfirmar)}
+        variante={confirmacion?.variante}
+        titulo={
+          porConfirmar &&
+          `¿${confirmacion.verbo} el aviso de ${porConfirmar.aviso.usuario.nombres} ${porConfirmar.aviso.usuario.apellidos} del ${rangoFechas(porConfirmar.aviso)}?`
+        }
+        mensaje={porConfirmar && `Motivo: ${porConfirmar.aviso.motivo}`}
+        textoConfirmar="Confirmar"
+        cargando={Boolean(porConfirmar) && actualizando?.id === porConfirmar.aviso.id_notificacion}
+        onConfirmar={confirmarCambio}
+        onCancelar={cancelarConfirmacion}
+      />
+
       <div className="ina-filtros">
         {[{ valor: '', etiqueta: 'Todos' }, ...ESTADOS].map((e) => (
           <button
@@ -304,7 +341,7 @@ const VistaEncargado = () => {
                         cargando={actualizando?.id === a.id_notificacion && actualizando.estado === 'aprobado'}
                         disabled={actualizando?.id === a.id_notificacion || a.estado === 'aprobado'}
                         textoCargando={null}
-                        onClick={() => handleEstado(a, 'aprobado')}
+                        onClick={() => pedirConfirmacion(a, 'aprobado')}
                         title="Aprobar"
                       >
                         <i className="bi bi-check-lg"></i>
@@ -314,7 +351,7 @@ const VistaEncargado = () => {
                         cargando={actualizando?.id === a.id_notificacion && actualizando.estado === 'rechazado'}
                         disabled={actualizando?.id === a.id_notificacion || a.estado === 'rechazado'}
                         textoCargando={null}
-                        onClick={() => handleEstado(a, 'rechazado')}
+                        onClick={() => pedirConfirmacion(a, 'rechazado')}
                         title="Rechazar"
                       >
                         <i className="bi bi-x-lg"></i>

@@ -221,7 +221,10 @@ const VistaDia = () => {
             <button
               type="button"
               className="hor-btn"
-              onClick={() => navigate(`${RUTA_GESTION}?fecha=${fecha}`)}
+              onClick={() => {
+                const orden = data.bloques.find((b) => b.id_bloque === bloqueActivo)?.orden;
+                navigate(`${RUTA_GESTION}?fecha=${fecha}${orden ? `&turno=${orden}` : ''}`);
+              }}
             >
               <i className="bi bi-pencil-square"></i>
               Editar / Realizar asignaciones

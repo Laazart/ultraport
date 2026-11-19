@@ -10,6 +10,7 @@ import './gestionMalla.css';
 
 const RUTA_HOME = '/home';
 const FECHA_ISO = /^\d{4}-\d{2}-\d{2}$/;
+const TURNO_POR_DEFECTO = 1;
 
 const ETIQUETAS_ESTADO = {
   borrador: 'Borrador',
@@ -53,6 +54,19 @@ const bloqueInicialDe = (m) => {
   return (con ?? m.turnos[0])?.bloque.nombre_bloque ?? 'primer_turno';
 };
 
+// Pestaña (nombre_bloque) del turno N en la malla, o null si no existe.
+const bloquePorOrden = (m, orden) =>
+  m.turnos.find((t) => t.bloque.orden_secuencia === orden)?.bloque.nombre_bloque ?? null;
+
+const ordenDeBloque = (m, nombreBloque) =>
+  m.turnos.find((t) => t.bloque.nombre_bloque === nombreBloque)?.bloque.orden_secuencia ?? null;
+
+// ?turno=N válido (entero positivo) o null.
+const leerTurno = (valor) => {
+  const n = Number(valor);
+  return Number.isInteger(n) && n > 0 ? n : null;
+};
+
 const EstadoBadge = ({ estado }) => (
   <span className={`gm-badge gm-badge-${estado}`}>{ETIQUETAS_ESTADO[estado] ?? estado}</span>
 );
@@ -85,6 +99,9 @@ const GestionMalla = () => {
   const [cargandoMallas, setCargandoMallas] = useState(true);
   const [malla, setMalla] = useState(null);
   const [fecha, setFecha] = useState('');
+  // Turno (orden_secuencia) elegido en "Nueva planificación".
+  const [turnoNuevo, setTurnoNuevo] = useState(TURNO_POR_DEFECTO);
+  const [bloquesCatalogo, setBloquesCatalogo] = useState([]);
   const [error, setError] = useState('');
   const [aviso, setAviso] = useState('');
   const [cargando, setCargando] = useState(false);
@@ -113,26 +130,41 @@ const GestionMalla = () => {
     }
   };
 
-  const abrirMalla = (m) => {
+  // Refleja la malla y el turno abiertos en la URL (?fecha=...&turno=N).
+  const sincronizarUrl = (fechaMalla, orden) => {
+    const turno = orden ? String(orden) : null;
+    if (searchParams.get('fecha') === fechaMalla && searchParams.get('turno') === turno) return;
+    setSearchParams(turno ? { fecha: fechaMalla, turno } : { fecha: fechaMalla }, { replace: true });
+  };
+
+  // orden: turno a abrir (1, 2, 3). Sin orden, el primer bloque con cupos libres.
+  const abrirMalla = (m, orden = null) => {
+    const bloque = (orden && bloquePorOrden(m, orden)) || bloqueInicialDe(m);
     setMalla(m);
     setAviso('');
-    setBloqueActivo(bloqueInicialDe(m));
+    setBloqueActivo(bloque);
     setTurnoSeleccionado(null);
     setCandidatos([]);
     setMoviendo(null);
     setMallas((prev) => prev.map((x) => (x.id_malla === m.id_malla ? { ...x, estado: m.estado } : x)));
-    if (searchParams.get('fecha') !== m.fecha) {
-      setSearchParams({ fecha: m.fecha }, { replace: true });
-    }
+    sincronizarUrl(m.fecha, ordenDeBloque(m, bloque));
   };
 
-  const seleccionarMalla = (id) =>
-    ejecutar(async () => abrirMalla(await horarioService.obtenerMalla(id)));
+  const cambiarBloque = (b) => {
+    setBloqueActivo(b.nombre_bloque);
+    sincronizarUrl(malla.fecha, b.orden_secuencia);
+  };
 
-  // ?fecha=YYYY-MM-DD (p. ej. desde Visualización de horario) abre la malla de
-  // esa fecha o, si no existe, deja la fecha lista para iniciar la planificación.
+  const seleccionarMalla = (id, orden = null) =>
+    ejecutar(async () => abrirMalla(await horarioService.obtenerMalla(id), orden));
+
+  // ?fecha=YYYY-MM-DD&turno=N (p. ej. desde Visualización de horario) abre la
+  // malla de esa fecha en ese turno o, si no existe, deja fecha y turno listos
+  // para iniciar la planificación.
   const abrirDesdeEnlace = useEffectEvent((lista) => {
     const fechaEnlace = searchParams.get('fecha');
+    const turnoEnlace = leerTurno(searchParams.get('turno'));
+    if (turnoEnlace) setTurnoNuevo(turnoEnlace);
     if (!fechaEnlace) return;
     if (!FECHA_ISO.test(fechaEnlace)) {
       setAviso('La fecha indicada en el enlace no es válida (AAAA-MM-DD).');
@@ -140,7 +172,7 @@ const GestionMalla = () => {
     }
     const encontrada = lista.find((m) => m.fecha === fechaEnlace);
     if (encontrada) {
-      seleccionarMalla(encontrada.id_malla);
+      seleccionarMalla(encontrada.id_malla, turnoEnlace);
     } else {
       setFecha(fechaEnlace);
       setAviso(`No hay malla para el ${formatearFecha(fechaEnlace)}; puedes iniciarla.`);
@@ -162,6 +194,10 @@ const GestionMalla = () => {
       })
       .catch((err) => setError(mensajeError(err, 'No se pudieron cargar las mallas.')))
       .finally(() => setCargandoMallas(false));
+    horarioService
+      .listarBloques()
+      .then(setBloquesCatalogo)
+      .catch((err) => setError(mensajeError(err, 'No se pudieron cargar los turnos.')));
   }, [navigate]);
 
   const recargarCandidatos = async (idTurno) => {
@@ -187,11 +223,20 @@ const GestionMalla = () => {
     }
   };
 
+  // Crea la malla del día (3 bloques) y la abre en el turno elegido. Si ya
+  // existe una malla para esa fecha, la abre en ese turno en vez de fallar.
   const handleIniciarPlantilla = () =>
     ejecutar(async () => {
-      const nueva = await horarioService.iniciarDesdePlantilla(fecha);
-      setMallas((prev) => [nueva, ...prev]);
-      abrirMalla(nueva);
+      const yaListada = fecha ? mallas.find((m) => m.fecha === fecha) : null;
+      const resultado = yaListada
+        ? await horarioService.obtenerMalla(yaListada.id_malla)
+        : await horarioService.iniciarDesdePlantilla(fecha);
+      const existia = Boolean(yaListada) || mallas.some((m) => m.id_malla === resultado.id_malla);
+      if (!existia) setMallas((prev) => [resultado, ...prev]);
+      abrirMalla(resultado, turnoNuevo);
+      if (existia) {
+        setAviso(`Ya existía una malla para el ${formatearFecha(resultado.fecha)}; se abrió en el ${turnoNuevo}° turno.`);
+      }
     }, 'iniciar');
 
   const handleAutocompletar = () =>
@@ -318,9 +363,27 @@ const GestionMalla = () => {
             <input
               type="date"
               className="gm-input"
+              aria-label="Fecha de la malla"
               value={fecha}
               onChange={(e) => setFecha(e.target.value)}
             />
+            <select
+              className="gm-input"
+              aria-label="Turno a abrir"
+              value={turnoNuevo}
+              onChange={(e) => setTurnoNuevo(Number(e.target.value))}
+              disabled={bloquesCatalogo.length === 0}
+            >
+              {bloquesCatalogo.length === 0 ? (
+                <option value={turnoNuevo}>Cargando turnos...</option>
+              ) : (
+                bloquesCatalogo.map((b) => (
+                  <option key={b.id_bloque} value={b.orden_secuencia}>
+                    {nombreTurno(b)} · {horarioBloque(b)}
+                  </option>
+                ))
+              )}
+            </select>
             <BotonCargando
               className="gm-btn gm-btn-primario"
               onClick={handleIniciarPlantilla}
@@ -413,7 +476,7 @@ const GestionMalla = () => {
                       role="tab"
                       aria-selected={b.nombre_bloque === bloqueActivo}
                       className={`gm-tab ${b.nombre_bloque === bloqueActivo ? 'activo' : ''}`}
-                      onClick={() => setBloqueActivo(b.nombre_bloque)}
+                      onClick={() => cambiarBloque(b)}
                     >
                       <span className="gm-tab-nombre">{nombreTurno(b)}</span>
                       <span className="gm-tab-horario">{horarioBloque(b)}</span>
