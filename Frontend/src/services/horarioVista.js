@@ -14,6 +14,15 @@ const horarioVistaService = {
     });
     return response.data;
   },
+
+  // Semana (lunes a domingo) que contiene `desde`; el backend normaliza al lunes.
+  obtenerSemana: async (desde) => {
+    const response = await http.get(`${API_URL}semana/`, {
+      headers: authHeaders(),
+      params: desde ? { desde } : {},
+    });
+    return response.data;
+  },
 };
 
 export default horarioVistaService;

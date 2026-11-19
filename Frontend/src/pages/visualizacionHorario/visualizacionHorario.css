@@ -353,3 +353,339 @@
   align-items: center;
   gap: 8px;
 }
+
+/* ---------------------------------------------------------- Día | Semana */
+
+.hor-modo-barra {
+  max-width: 1040px;
+  margin: 0 auto 16px;
+}
+
+.hor-modo {
+  display: inline-flex;
+  background: #0E1826;
+  border: 1px solid #1E3349;
+  border-radius: 10px;
+  padding: 4px;
+  gap: 4px;
+}
+
+.hor-modo-opcion {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: none;
+  border-radius: 7px;
+  padding: 7px 16px;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #C7D1DE;
+  cursor: pointer;
+  transition: background .15s ease, color .15s ease;
+}
+
+.hor-modo-opcion:hover {
+  color: #F2A63D;
+}
+
+.hor-modo-opcion.activo {
+  background: #F2A63D;
+  color: #0A1420;
+}
+
+.hor-contenedor-ancho {
+  max-width: 1320px;
+}
+
+.hor-semana-rango {
+  font-size: 14px;
+  font-weight: 600;
+  color: #E9EEF5;
+  min-width: 150px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.hor-semana-titulo {
+  font-size: 15px;
+  font-weight: 600;
+  color: #F4F7FB;
+  margin: 0;
+}
+
+/* ---------------------------------------------------------- Mi semana (trabajador) */
+
+.hor-semana-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 10px;
+}
+
+@media (max-width: 1100px) {
+  .hor-semana-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .hor-semana-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.hor-dia-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: #101C2C;
+  border: 1px solid #1E3349;
+  border-radius: 10px;
+  padding: 12px;
+  min-height: 150px;
+}
+
+.hor-dia-card.turno {
+  border-color: rgba(242, 166, 61, 0.45);
+}
+
+.hor-dia-card.hoy {
+  box-shadow: inset 0 3px 0 #F2A63D;
+}
+
+.hor-dia-cabecera {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.hor-dia-nombre {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: #E9EEF5;
+  text-transform: capitalize;
+}
+
+.hor-dia-fecha {
+  font-size: 12px;
+  color: #7E90A8;
+  font-variant-numeric: tabular-nums;
+}
+
+.hor-dia-turno {
+  background: rgba(242, 166, 61, 0.08);
+  border: 1px solid rgba(242, 166, 61, 0.3);
+  border-radius: 8px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12.5px;
+  color: #C7D1DE;
+}
+
+.hor-dia-turno-bloque {
+  font-weight: 700;
+  color: #F2A63D;
+}
+
+.hor-dia-turno-horario,
+.hor-dia-turno-detalle {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.hor-dia-turno-horario {
+  color: #E9EEF5;
+  font-variant-numeric: tabular-nums;
+}
+
+.hor-dia-turno-detalle {
+  color: #A9B6C6;
+}
+
+.hor-dia-estado {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  text-align: center;
+  font-size: 12.5px;
+  color: #7E90A8;
+}
+
+.hor-dia-estado i {
+  font-size: 1.4rem;
+}
+
+.hor-dia-estado.descanso {
+  color: #6FD39B;
+}
+
+.hor-dia-nota {
+  font-size: 11.5px;
+  color: #A9B6C6;
+  background: rgba(126, 144, 168, 0.1);
+  border-radius: 6px;
+  padding: 5px 8px;
+}
+
+/* ---------------------------------------------------------- Matriz (encargado / administrador) */
+
+.hor-matriz-scroll {
+  overflow-x: auto;
+  background: #101C2C;
+  border: 1px solid #1E3349;
+  border-radius: 10px;
+}
+
+.hor-matriz {
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 12.5px;
+  color: #E9EEF5;
+  min-width: 100%;
+}
+
+.hor-matriz th,
+.hor-matriz td {
+  border-right: 1px solid #16283C;
+  border-bottom: 1px solid #16283C;
+  padding: 6px 8px;
+  white-space: nowrap;
+}
+
+.hor-matriz thead th {
+  background: #0E1826;
+  color: #A9B6C6;
+  font-weight: 600;
+  text-align: center;
+  font-size: 11.5px;
+}
+
+.hor-matriz thead th.dia {
+  color: #E9EEF5;
+  font-size: 12px;
+}
+
+.hor-matriz .inicio-dia {
+  border-left: 2px solid #1E3349;
+}
+
+.hor-matriz .hoy {
+  background-color: rgba(242, 166, 61, 0.07);
+}
+
+.hor-matriz thead th.hoy {
+  color: #F2A63D;
+}
+
+.hor-matriz .fija {
+  position: sticky;
+  background: #101C2C;
+  z-index: 1;
+  text-align: left;
+}
+
+.hor-matriz thead .fija {
+  background: #0E1826;
+  z-index: 2;
+}
+
+.hor-matriz .fija.codigo {
+  left: 0;
+  min-width: 70px;
+  max-width: 70px;
+  color: #A9B6C6;
+  font-variant-numeric: tabular-nums;
+}
+
+.hor-matriz .fija.nombre {
+  left: 70px;
+  min-width: 190px;
+  box-shadow: 2px 0 0 #1E3349;
+}
+
+.hor-matriz .celda {
+  text-align: center;
+  min-width: 30px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.hor-matriz .celda.asignado {
+  background-color: rgba(242, 166, 61, 0.18);
+  color: #F2A63D;
+}
+
+.hor-matriz .celda.oculta {
+  background-color: rgba(126, 144, 168, 0.06);
+}
+
+.hor-matriz tr.grupo th {
+  background: #0A1420;
+  text-align: left;
+  color: #F2A63D;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.hor-matriz tr.grupo.sin-turnos th {
+  color: #7E90A8;
+}
+
+.hor-matriz-grupo {
+  position: sticky;
+  left: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hor-matriz-cuenta {
+  font-size: 10.5px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(126, 144, 168, 0.18);
+  color: #C7D1DE;
+}
+
+.hor-matriz tr.sin-turnos td {
+  color: #7E90A8;
+}
+
+.hor-matriz tfoot th,
+.hor-matriz tfoot td {
+  background: #0E1826;
+  color: #C7D1DE;
+  font-weight: 700;
+  border-top: 2px solid #1E3349;
+}
+
+.hor-matriz .celda.total {
+  color: #E9EEF5;
+}
+
+.hor-matriz-marca {
+  display: inline-block;
+  margin-top: 3px;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 7px;
+  border-radius: 999px;
+}
+
+.hor-matriz-marca.borrador {
+  background: rgba(242, 196, 109, 0.15);
+  color: #F2C46D;
+}
+
+.hor-matriz-marca.muted {
+  background: rgba(126, 144, 168, 0.15);
+  color: #7E90A8;
+}
