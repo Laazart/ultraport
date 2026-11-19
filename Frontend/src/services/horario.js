@@ -18,6 +18,12 @@ const horarioService = {
     return response.data;
   },
 
+  // Solo lectura: mallas publicadas exportables (no requiere permiso de planificar).
+  listarMallasPublicadas: async () => {
+    const response = await http.get(`${API_URL}reportes/mallas/`, getAuthHeaders());
+    return response.data;
+  },
+
   obtenerMalla: async (id) => {
     const response = await http.get(`${API_URL}mallas/${id}/`, getAuthHeaders());
     return response.data;

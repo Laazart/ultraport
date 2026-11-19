@@ -9,7 +9,13 @@ import '../mallaDeTurnos/gestionMalla.css';
 import './ReportesYExportacion.css';
 
 const RUTA_HOME = '/home';
-const ROL_PLANIFICADOR = 2;
+// Mismos roles que muestran el módulo en Home.
+const ROLES_REPORTES = [1, 2]; // Administrador, Planificador
+
+const FORMATOS = [
+  { valor: 'pdf', etiqueta: 'Descargar PDF', icono: 'bi-file-earmark-pdf' },
+  { valor: 'xlsx', etiqueta: 'Descargar Excel', icono: 'bi-file-earmark-excel' },
+];
 
 const hoyISO = () => new Date().toLocaleDateString('en-CA');
 
@@ -42,16 +48,15 @@ const ReportesYExportacion = () => {
       navigate('/login');
       return;
     }
-    if (currentUser.id_rol !== ROL_PLANIFICADOR) {
+    if (!ROLES_REPORTES.includes(Number(currentUser.id_rol))) {
       navigate(RUTA_HOME);
       return;
     }
     setUsuario(currentUser);
 
     horarioService
-      .listarMallas()
-      .then((mallas) => {
-        const publicadas = mallas.filter((m) => m.estado === 'publicada');
+      .listarMallasPublicadas()
+      .then((publicadas) => {
         setMallasPublicadas(publicadas);
         if (publicadas.length > 0) setMallaId(String(publicadas[0].id_malla));
       })
@@ -71,26 +76,40 @@ const ReportesYExportacion = () => {
     }
   };
 
-  const exportarMalla = () => {
+  // formato: 'pdf' | 'xlsx'. Mismos filtros para ambos formatos.
+  const exportarMalla = (formato) => {
     const malla = mallasPublicadas.find((m) => String(m.id_malla) === mallaId);
     const sufijo = bloque ? `_${bloque}` : '';
-    return descargar('malla', () =>
+    return descargar(`malla-${formato}`, () =>
       horarioService.descargarArchivo(
-        `reportes/malla/${mallaId}/pdf/`,
+        `reportes/malla/${mallaId}/${formato}/`,
         bloque ? { bloque } : {},
-        `horario_${malla?.fecha ?? mallaId}${sufijo}.pdf`,
+        `horario_${malla?.fecha ?? mallaId}${sufijo}.${formato}`,
       )
     );
   };
 
-  const exportarInasistencias = () =>
-    descargar('inasistencias', () =>
+  const exportarInasistencias = (formato) =>
+    descargar(`inasistencias-${formato}`, () =>
       horarioService.descargarArchivo(
-        'reportes/inasistencias/pdf/',
+        `reportes/inasistencias/${formato}/`,
         { desde, hasta, estado: estado || undefined },
-        `inasistencias_${desde}_${hasta}.pdf`,
+        `inasistencias_${desde}_${hasta}.${formato}`,
       )
     );
+
+  const botonesDescarga = (reporte, exportar, deshabilitado) =>
+    FORMATOS.map((f) => (
+      <button
+        key={f.valor}
+        className="gm-btn gm-btn-primario"
+        disabled={deshabilitado || descargando !== ''}
+        onClick={() => exportar(f.valor)}
+      >
+        <i className={`bi ${f.icono}`}></i>
+        {descargando === `${reporte}-${f.valor}` ? ' Generando...' : ` ${f.etiqueta}`}
+      </button>
+    ));
 
   const handleLogout = async () => {
     await authService.logout();
@@ -129,7 +148,7 @@ const ReportesYExportacion = () => {
 
       <div className="up-hero">
         <h1>Reportes y Exportación</h1>
-        <p>Exporta horarios publicados e historial de inasistencias en PDF</p>
+        <p>Exporta horarios publicados e historial de inasistencias en PDF o Excel</p>
       </div>
 
       <div className="gm-contenedor">
@@ -141,10 +160,10 @@ const ReportesYExportacion = () => {
 
         <section className="gm-panel rep-panel">
           <div className="gm-panel-titulo">
-            <i className="bi bi-file-earmark-pdf"></i> Horario publicado
+            <i className="bi bi-calendar3"></i> Horario publicado
           </div>
           <p className="gm-muted rep-descripcion">
-            Genera el PDF de la malla definitiva, agrupado por área y bloque de turno.
+            Genera el PDF o Excel de la malla definitiva, agrupado por área y bloque de turno.
           </p>
 
           {cargandoMallas ? (
@@ -183,14 +202,7 @@ const ReportesYExportacion = () => {
                 </select>
               </label>
               <div className="rep-acciones">
-                <button
-                  className="gm-btn gm-btn-primario"
-                  disabled={!mallaId || descargando !== ''}
-                  onClick={exportarMalla}
-                >
-                  <i className="bi bi-download"></i>
-                  {descargando === 'malla' ? ' Generando...' : ' Exportar PDF'}
-                </button>
+                {botonesDescarga('malla', exportarMalla, !mallaId)}
               </div>
             </div>
           )}
@@ -243,14 +255,7 @@ const ReportesYExportacion = () => {
           )}
 
           <div className="rep-acciones">
-            <button
-              className="gm-btn gm-btn-primario"
-              disabled={rangoInvalido || descargando !== ''}
-              onClick={exportarInasistencias}
-            >
-              <i className="bi bi-download"></i>
-              {descargando === 'inasistencias' ? ' Generando...' : ' Exportar PDF'}
-            </button>
+            {botonesDescarga('inasistencias', exportarInasistencias, rangoInvalido)}
           </div>
         </section>
       </div>
