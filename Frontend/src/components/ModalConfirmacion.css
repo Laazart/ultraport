@@ -1,0 +1,95 @@
+/* Diálogo de confirmación: mismo lenguaje visual que el modal de Gestión de Usuarios. */
+.up-confirm-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(10, 20, 32, 0.85);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.up-confirm {
+  background: #101C2C;
+  border: 1px solid #1E3349;
+  border-radius: 12px;
+  padding: 28px 30px;
+  max-width: 420px;
+  width: 90%;
+  text-align: center;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  animation: upConfirmIn 0.25s ease;
+}
+
+@keyframes upConfirmIn {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.up-confirm-icono {
+  font-size: 40px;
+  margin-bottom: 12px;
+  color: #F2A63D;
+}
+.up-confirm-icono.aprobar { color: #6FD39B; }
+.up-confirm-icono.rechazar { color: #F2867D; }
+
+.up-confirm-titulo {
+  color: #F4F7FB;
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0 0 8px;
+}
+
+.up-confirm-mensaje {
+  color: #7E90A8;
+  font-size: 14px;
+  margin: 0;
+}
+
+.up-confirm-acciones {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin-top: 24px;
+}
+
+.up-confirm-btn {
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.up-confirm-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.up-confirm-btn.cancelar {
+  background: transparent;
+  border: 1px solid #1E3349;
+  color: #C7D1DE;
+}
+.up-confirm-btn.cancelar:hover:not(:disabled) {
+  background: rgba(126, 144, 168, 0.1);
+  color: #FFF;
+}
+
+.up-confirm-btn.confirmar {
+  border: none;
+  color: #0A1420;
+  background: #F2A63D;
+}
+.up-confirm-btn.confirmar.aprobar { background: #6FD39B; }
+.up-confirm-btn.confirmar.aprobar:hover:not(:disabled) { background: #5cc489; }
+.up-confirm-btn.confirmar.rechazar { background: #E2574C; color: #FFF; }
+.up-confirm-btn.confirmar.rechazar:hover:not(:disabled) { background: #d0453a; }
+
+.up-confirm-btn:focus-visible {
+  outline: 2px solid #F2A63D;
+  outline-offset: 2px;
+}

@@ -83,9 +83,15 @@ const horarioService = {
     return response.data;
   },
 
-  iniciarDesdePlantilla: async (fecha, idBloque = 1) => {
-    const body = { id_bloque: idBloque };
-    if (fecha) body.fecha = fecha;
+  // Catálogo de turnos (1°, 2°, 3°) con sus horarios.
+  listarBloques: async () => {
+    const response = await http.get(`${API_URL}bloques/`, getAuthHeaders());
+    return response.data;
+  },
+
+  // Crea la malla del día con sus 3 bloques (201) o devuelve la existente (200).
+  iniciarDesdePlantilla: async (fecha) => {
+    const body = fecha ? { fecha } : {};
     const response = await http.post(`${API_URL}mallas/iniciar-plantilla/`, body, getAuthHeaders());
     return response.data;
   },
