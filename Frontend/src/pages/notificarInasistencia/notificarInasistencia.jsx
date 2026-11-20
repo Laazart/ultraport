@@ -53,7 +53,7 @@ const LinkAdjunto = ({ url }) =>
     <span className="ina-muted">—</span>
   );
 
-const VistaTrabajador = ({ usuario }) => {
+const VistaTrabajador = () => {
   const [form, setForm] = useState(FORM_INICIAL);
   const [inputKey, setInputKey] = useState(0);
   const [avisos, setAvisos] = useState([]);
@@ -113,16 +113,6 @@ const VistaTrabajador = ({ usuario }) => {
 
         {error && <div className="alert alert-danger p-2">{error}</div>}
         {mensaje && <div className="alert alert-success p-2">{mensaje}</div>}
-
-        <label className="ina-label" htmlFor="rut">RUT</label>
-        <input
-          id="rut"
-          type="text"
-          className="form-control ina-input"
-          value={usuario.rut}
-          readOnly
-          disabled
-        />
 
         <label className="ina-label" htmlFor="motivo">Motivo *</label>
         <textarea
@@ -440,7 +430,7 @@ const NotificarInasistencia = () => {
         </p>
       </div>
 
-      {usuario && (esEncargado ? <VistaEncargado /> : <VistaTrabajador usuario={usuario} />)}
+      {usuario && (esEncargado ? <VistaEncargado /> : <VistaTrabajador />)}
     </div>
   );
 };

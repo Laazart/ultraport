@@ -2,7 +2,7 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.settings import api_settings as jwt_settings
 from rest_framework.exceptions import AuthenticationFailed
 from .models import Usuario, Rol , Contrato, Puesto, UsuarioPuesto, TipoLicencia, UsuarioLicencia, Maquinaria, UsuarioMaquinaria
-from .services import buscar_usuario_por_identificador
+from .services import buscar_usuario_por_identificador, esta_vencida
 from rest_framework import serializers
 from django.contrib.auth import authenticate
 from django.contrib.auth.models import update_last_login
@@ -113,24 +113,16 @@ class UsuarioSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         if self.instance is None and not attrs.get('password'):
             raise serializers.ValidationError({'password': 'La contraseña es obligatoria.'})
+        # La reutilización de contraseñas la verifica usuarios.services.actualizar_usuario.
         return attrs
+
+    # Crear y editar pasan por usuarios.services (hash de contraseña, historial y
+    # auditoría). save() directo saltaría todo eso, así que se bloquea.
     def create(self, validated_data):
-        password = validated_data.pop('password')
-        usuario = Usuario(**validated_data)
-        usuario.set_password(password)
-        usuario.save()
-        return usuario
+        raise NotImplementedError('Usa usuarios.services.crear_usuario().')
+
     def update(self, instance, validated_data):
-        password = validated_data.pop('password', None)
-        for attr, valor in validated_data.items():
-            setattr(instance, attr, valor)
-        if 'estado' in validated_data:
-            # is_active sigue a estado en ambos sentidos (reactivar/desactivar).
-            instance.is_active = instance.estado == 'activo'
-        if password:
-            instance.set_password(password)
-        instance.save()
-        return instance
+        raise NotImplementedError('Usa usuarios.services.actualizar_usuario().')
 
 class RolSerializer(serializers.ModelSerializer):
     id_rol = serializers.IntegerField(read_only=True,help_text='Identificador del rol.',)
@@ -187,14 +179,144 @@ class UsuarioPuestoSerializer(serializers.ModelSerializer):
         fields = ['id_usuario_puesto', 'id_usuario', 'id_puesto', 'fecha_asignacion']
 
 
+MENSAJE_VENCIMIENTO_ANTERIOR = 'La fecha de vencimiento debe ser posterior a la fecha de emisión.'
+
+
+def _validar_fechas_licencia(emision, vencimiento):
+    if emision and vencimiento and vencimiento <= emision:
+        raise serializers.ValidationError({'fecha_vencimiento': MENSAJE_VENCIMIENTO_ANTERIOR})
+
+
 class UsuarioLicenciaSerializer(serializers.ModelSerializer):
     class Meta:
         model = UsuarioLicencia
         fields = ['id_usuario_licencia', 'id_usuario', 'id_tipo_licencia',
                   'especialidades', 'fecha_emision', 'fecha_vencimiento', 'url_adjunto']
 
+    def validate(self, attrs):
+        instancia = self.instance
+        _validar_fechas_licencia(
+            attrs.get('fecha_emision', getattr(instancia, 'fecha_emision', None)),
+            attrs.get('fecha_vencimiento', getattr(instancia, 'fecha_vencimiento', None)),
+        )
+        return attrs
+
 
 class UsuarioMaquinariaSerializer(serializers.ModelSerializer):
     class Meta:
         model = UsuarioMaquinaria
         fields = ['id_usuario_maquinaria', 'id_usuario', 'id_maquinaria', 'fecha_vencimiento']
+
+
+# --- Competencias de un trabajador (contrato, puestos, licencias, maquinaria) ---
+
+
+
+class ContratoResumenSerializer(serializers.ModelSerializer):
+    tipo_display = serializers.CharField(source='get_tipo_display', read_only=True)
+
+    class Meta:
+        model = Contrato
+        fields = ['id_contrato', 'tipo', 'tipo_display', 'modalidad', 'turno_habitual',
+                  'horas_semanales_pactadas', 'fecha_inicio', 'fecha_termino']
+
+
+class PuestoAsignadoSerializer(serializers.ModelSerializer):
+    nombre_puesto = serializers.CharField(source='id_puesto.nombre_puesto', read_only=True)
+
+    class Meta:
+        model = UsuarioPuesto
+        fields = ['id_puesto', 'nombre_puesto', 'fecha_asignacion']
+
+
+class LicenciaAsignadaSerializer(serializers.ModelSerializer):
+    nombre_licencia = serializers.CharField(source='id_tipo_licencia.nombre_licencia', read_only=True)
+    vencida = serializers.SerializerMethodField()
+
+    class Meta:
+        model = UsuarioLicencia
+        fields = ['id_usuario_licencia', 'id_tipo_licencia', 'nombre_licencia', 'especialidades',
+                  'fecha_emision', 'fecha_vencimiento', 'vencida']
+
+    def get_vencida(self, obj):
+        return esta_vencida(obj.fecha_vencimiento)
+
+
+class MaquinariaCertificadaSerializer(serializers.ModelSerializer):
+    nombre_maquinaria = serializers.CharField(source='id_maquinaria.nombre_maquinaria', read_only=True)
+    id_tipo_licencia_requerida = serializers.IntegerField(
+        source='id_maquinaria.id_tipo_licencia_requerida_id', read_only=True)
+    vencida = serializers.SerializerMethodField()
+
+    class Meta:
+        model = UsuarioMaquinaria
+        fields = ['id_usuario_maquinaria', 'id_maquinaria', 'nombre_maquinaria',
+                  'id_tipo_licencia_requerida', 'fecha_vencimiento', 'vencida']
+
+    def get_vencida(self, obj):
+        return esta_vencida(obj.fecha_vencimiento)
+
+
+def competencias_de(usuario):
+    """Representación de lectura de las competencias de un usuario."""
+    return {
+        'contrato': ContratoResumenSerializer(usuario.id_contrato).data if usuario.id_contrato else None,
+        'puestos': PuestoAsignadoSerializer(
+            usuario.puestos.select_related('id_puesto').order_by('id_puesto__nombre_puesto'),
+            many=True).data,
+        'licencias': LicenciaAsignadaSerializer(
+            usuario.licencias.select_related('id_tipo_licencia').order_by('id_tipo_licencia__nombre_licencia'),
+            many=True).data,
+        'maquinarias': MaquinariaCertificadaSerializer(
+            usuario.maquinarias.select_related('id_maquinaria').order_by('id_maquinaria__nombre_maquinaria'),
+            many=True).data,
+    }
+
+
+class LicenciaEntradaSerializer(serializers.Serializer):
+    id_tipo_licencia = serializers.PrimaryKeyRelatedField(queryset=TipoLicencia.objects.all())
+    fecha_emision = serializers.DateField()
+    fecha_vencimiento = serializers.DateField()
+    especialidades = serializers.CharField(max_length=255, required=False, allow_blank=True)
+
+    def validate(self, attrs):
+        _validar_fechas_licencia(attrs['fecha_emision'], attrs['fecha_vencimiento'])
+        return attrs
+
+
+class MaquinariaEntradaSerializer(serializers.Serializer):
+    id_maquinaria = serializers.PrimaryKeyRelatedField(queryset=Maquinaria.objects.all())
+    fecha_vencimiento = serializers.DateField(allow_null=True, required=False)
+
+
+class CompetenciasSerializer(serializers.Serializer):
+    """
+    Reemplaza puestos, licencias y maquinaria certificada de un usuario.
+
+    Las licencias se emparejan por tipo y las máquinas por máquina: las que ya
+    existen se actualizan, las nuevas se crean y las que no vienen se quitan.
+    """
+    puestos = serializers.ListField(
+        child=serializers.PrimaryKeyRelatedField(queryset=Puesto.objects.all()), required=False)
+    licencias = LicenciaEntradaSerializer(many=True, required=False)
+    maquinarias = MaquinariaEntradaSerializer(many=True, required=False)
+
+    def validate_licencias(self, value):
+        vistos = set()
+        for item in value:
+            tipo = item['id_tipo_licencia']
+            if tipo.pk in vistos:
+                raise serializers.ValidationError(f'La licencia {tipo.nombre_licencia} está repetida.')
+            vistos.add(tipo.pk)
+        return value
+
+    def validate_maquinarias(self, value):
+        vistos = set()
+        for item in value:
+            maquina = item['id_maquinaria']
+            if maquina.pk in vistos:
+                raise serializers.ValidationError(f'La máquina {maquina.nombre_maquinaria} está repetida.')
+            vistos.add(maquina.pk)
+        return value
+
+    # El guardado y las advertencias están en usuarios.services.guardar_competencias.

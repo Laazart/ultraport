@@ -12,6 +12,7 @@ from usuarios.models import (
     Contrato, Puesto, Rol, TipoLicencia, Usuario, UsuarioLicencia, UsuarioPuesto,
 )
 from usuarios.permissions import Roles
+from usuarios.tests import contrato_de_tipo
 from usuarios.validar_rut import calcular_digito_verificador
 from .models import Asignacion, BloqueTurno, Malla, NotificacionInasistencia, Turno
 from .plantillas import PLANTILLA_BASE
@@ -48,13 +49,17 @@ class _BaseMalla:
         self.tercero = BloqueTurno.objects.get(orden_secuencia=3)
         self.puesto = Puesto.objects.create(nombre_puesto='Puesto prueba CU-7')
         self.rol_trabajador = Rol.objects.get(pk=Roles.TRABAJADOR)
+        # Quien ejecuta las acciones (queda como actor en la auditoría).
+        self.actor = Usuario.objects.create_user(
+            f'actor-{next(_apellidos)}@test.cl', _rut_valido(), 'Ana', 'Encargada',
+            id_rol=Rol.objects.get(pk=Roles.PLANIFICADOR),
+        )
         self.eventual = self._contrato('eventual', semana=None, consecutivas=None)
         self.bono = self._contrato('bono_turno', semana=2, consecutivas=1, extra=False)
 
     def _contrato(self, tipo, semana, consecutivas, extra=True):
-        return Contrato.objects.create(
-            tipo=tipo, turno_habitual='rotativo', horas_semanales_pactadas=42,
-            permite_horas_extra=extra, fecha_inicio=date(2026, 1, 1),
+        return contrato_de_tipo(
+            tipo, permite_horas_extra=extra,
             max_noches_semana=semana, max_noches_consecutivas=consecutivas,
         )
 
@@ -101,18 +106,18 @@ class AsignarYQuitarTests(_BaseMalla, TestCase):
 
     def test_asignar_en_malla_publicada_queda_confirmado(self):
         turno = self._turno(self._malla(_dia(0), publicada=True), self.primero)
-        asignacion = asignar_usuario(turno, self._trabajador())
+        asignacion = asignar_usuario(turno, self._trabajador(), actor=self.actor)
         self.assertEqual(asignacion.estado, Asignacion.Estados.CONFIRMADO)
 
     def test_asignar_en_borrador_queda_borrador(self):
         turno = self._turno(self._malla(_dia(0)), self.primero)
-        asignacion = asignar_usuario(turno, self._trabajador())
+        asignacion = asignar_usuario(turno, self._trabajador(), actor=self.actor)
         self.assertEqual(asignacion.estado, Asignacion.Estados.BORRADOR)
 
     def test_asignar_sobre_el_cupo_se_permite(self):
         turno = self._turno(self._malla(_dia(0)), self.primero, cupos=1)
-        asignar_usuario(turno, self._trabajador())
-        asignar_usuario(turno, self._trabajador())
+        asignar_usuario(turno, self._trabajador(), actor=self.actor)
+        asignar_usuario(turno, self._trabajador(), actor=self.actor)
         self.assertEqual(self._activas(id_turno=turno).count(), 2)
 
     def test_asignar_sigue_validando_descanso(self):
@@ -120,19 +125,19 @@ class AsignarYQuitarTests(_BaseMalla, TestCase):
         self._asignacion(self._turno(self._malla(_dia(0)), self.tercero), t)
         turno = self._turno(self._malla(_dia(1)), self.primero)
         with self.assertRaises(ValidationError) as ctx:
-            asignar_usuario(turno, t)
+            asignar_usuario(turno, t, actor=self.actor)
         self.assertErrorCon(ctx, MSG_DESCANSO)
 
     def test_quitar_en_borrador_elimina(self):
         turno = self._turno(self._malla(_dia(0)), self.primero)
         a = self._asignacion(turno, self._trabajador())
-        quitar_asignacion(a)
+        quitar_asignacion(a, actor=self.actor)
         self.assertFalse(Asignacion.objects.filter(pk=a.pk).exists())
 
     def test_quitar_en_publicada_queda_reemplazado_y_sale_de_la_grilla(self):
         turno = self._turno(self._malla(_dia(0), publicada=True), self.primero)
         a = self._asignacion(turno, self._trabajador(), Asignacion.Estados.CONFIRMADO)
-        quitar_asignacion(a)
+        quitar_asignacion(a, actor=self.actor)
         a.refresh_from_db()
         self.assertEqual(a.estado, Asignacion.Estados.REEMPLAZADO)
         self.assertEqual(TurnoSerializer(turno).data['asignaciones'], [])
@@ -149,7 +154,7 @@ class MoverTests(_BaseMalla, TestCase):
         t = self._trabajador()
         a = self._asignacion(origen, t, Asignacion.Estados.CONFIRMADO)
 
-        nueva = mover_asignacion(a, destino)
+        nueva = mover_asignacion(a, destino, actor=self.actor)
 
         a.refresh_from_db()
         self.assertEqual(a.estado, Asignacion.Estados.REEMPLAZADO)
@@ -164,7 +169,7 @@ class MoverTests(_BaseMalla, TestCase):
         destino = self._turno(malla, self.tercero)
         a = self._asignacion(origen, self._trabajador())
 
-        resultado = mover_asignacion(a, destino)
+        resultado = mover_asignacion(a, destino, actor=self.actor)
 
         self.assertEqual(resultado.pk, a.pk)
         self.assertEqual(resultado.id_turno, destino)
@@ -176,7 +181,7 @@ class MoverTests(_BaseMalla, TestCase):
         origen = self._turno(malla, self.primero)
         destino = self._turno(malla, self.segundo)
         a = self._asignacion(origen, self._trabajador())
-        self.assertEqual(mover_asignacion(a, destino).id_turno, destino)
+        self.assertEqual(mover_asignacion(a, destino, actor=self.actor).id_turno, destino)
 
     def test_mover_respeta_descanso(self):
         t = self._trabajador()
@@ -185,7 +190,7 @@ class MoverTests(_BaseMalla, TestCase):
         a = self._asignacion(self._turno(malla, self.segundo), t)
         destino = self._turno(malla, self.primero)
         with self.assertRaises(ValidationError) as ctx:
-            mover_asignacion(a, destino)
+            mover_asignacion(a, destino, actor=self.actor)
         self.assertErrorCon(ctx, MSG_DESCANSO)
 
     def test_mover_respeta_inasistencia(self):
@@ -194,14 +199,14 @@ class MoverTests(_BaseMalla, TestCase):
         a = self._asignacion(self._turno(malla, self.primero), t)
         self._inasistencia(t, _dia(1))
         with self.assertRaises(ValidationError) as ctx:
-            mover_asignacion(a, self._turno(malla, self.tercero))
+            mover_asignacion(a, self._turno(malla, self.tercero), actor=self.actor)
         self.assertErrorCon(ctx, MSG_INASISTENCIA)
 
     def test_mover_a_otra_malla_rechazado(self):
         a = self._asignacion(self._turno(self._malla(_dia(0)), self.primero), self._trabajador())
         otra = self._turno(self._malla(_dia(1)), self.primero)
         with self.assertRaises(ValidationError):
-            mover_asignacion(a, otra)
+            mover_asignacion(a, otra, actor=self.actor)
 
 
 class AutocompletarTests(_BaseMalla, TestCase):
@@ -219,14 +224,14 @@ class AutocompletarTests(_BaseMalla, TestCase):
     def test_reparte_entre_los_tres_bloques(self):
         for _ in range(6):
             self._trabajador()
-        autocompletar_malla(self.malla)
+        autocompletar_malla(self.malla, actor=self.actor)
         self.assertEqual(self._por_turno(), [2, 2, 2])
         self.assertTrue(all(n == 1 for n in self._turnos_por_trabajador().values()))
 
     def test_pool_insuficiente_nadie_dobla_turno_el_mismo_dia(self):
         for _ in range(3):
             self._trabajador()
-        autocompletar_malla(self.malla)
+        autocompletar_malla(self.malla, actor=self.actor)
         por_trabajador = self._turnos_por_trabajador()
         self.assertEqual(len(por_trabajador), 3)
         self.assertTrue(all(n == 1 for n in por_trabajador.values()))
@@ -236,7 +241,7 @@ class AutocompletarTests(_BaseMalla, TestCase):
     def test_no_supera_el_cupo_objetivo(self):
         for _ in range(10):
             self._trabajador()
-        creadas = autocompletar_malla(self.malla)
+        creadas = autocompletar_malla(self.malla, actor=self.actor)
         self.assertEqual(len(creadas), 6)
         self.assertEqual(self._por_turno(), [2, 2, 2])
 
@@ -246,14 +251,14 @@ class AutocompletarTests(_BaseMalla, TestCase):
         malla = self._malla(_dia(0), publicada=False)
         Turno.objects.filter(id_malla=malla).delete()
         noche = self._turno(malla, self.tercero, cupos=1)
-        autocompletar_malla(malla)
+        autocompletar_malla(malla, actor=self.actor)
         self.assertFalse(self._activas(id_turno=noche, id_usuario=bono).exists())
 
     def test_en_malla_publicada_crea_confirmadas(self):
         self.malla.estado = Malla.Estados.PUBLICADA
         self.malla.save()
         self._trabajador()
-        creadas = autocompletar_malla(self.malla)
+        creadas = autocompletar_malla(self.malla, actor=self.actor)
         self.assertEqual(len(creadas), 1)
         self.assertEqual(creadas[0].estado, Asignacion.Estados.CONFIRMADO)
 
@@ -268,7 +273,7 @@ class PublicarTests(_BaseMalla, TestCase):
         borrador = self._asignacion(turno, self._trabajador())
         reemplazada = self._asignacion(turno, self._trabajador(), Asignacion.Estados.REEMPLAZADO)
 
-        publicar_malla(malla)
+        publicar_malla(malla, actor=self.actor)
 
         borrador.refresh_from_db()
         reemplazada.refresh_from_db()
@@ -279,9 +284,9 @@ class PublicarTests(_BaseMalla, TestCase):
 
     def test_publicar_dos_veces_rechazado(self):
         malla = self._malla(_dia(0))
-        publicar_malla(malla)
+        publicar_malla(malla, actor=self.actor)
         with self.assertRaises(ValidationError):
-            publicar_malla(malla)
+            publicar_malla(malla, actor=self.actor)
 
 
 class MallaApiTests(_BaseMalla, APITestCase):

@@ -1,14 +1,19 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import userService, { contratoService , rolService } from '../../services/userService';
+import userService, { competenciaService, rolService } from '../../services/userService';
 import TextoRol from '../../components/TextoRol';
 import { esTimeout, MENSAJE_TIMEOUT } from '../../services/api';
-import './GestionDeUsuarios.css'; 
+import './GestionDeUsuarios.css';
+
+const ROJO = '#F2867D';
+
+// "2026-11-20" -> "20-11-2026" sin pasar por Date (evita el desfase de zona horaria).
+const formatoFecha = (iso) => (iso ? iso.split('-').reverse().join('-') : 'Sin vencimiento');
 
 const VerUsuario = () => {
   const navigate = useNavigate();
   const { id } = useParams();
-  const [contratos, setContratos] = useState([]);
+  const [competencias, setCompetencias] = useState(null);
   const [roles, setRoles] = useState([]);
   const [usuarioData, setUsuarioData] = useState(null);
   const [error, setError] = useState(null);
@@ -24,9 +29,7 @@ const VerUsuario = () => {
       const data = await userService.getUsuarioById(userId);
       setUsuarioData(data);
 
-      const respuesta = await contratoService.getContratos();
-      const lista = Array.isArray(respuesta) ? respuesta : respuesta.results ?? [];
-      setContratos(lista);
+      setCompetencias(await competenciaService.getCompetencias(userId));
 
       const respuestaRoles = await rolService.getRoles();
       const listaRoles = Array.isArray(respuestaRoles)
@@ -40,10 +43,7 @@ const VerUsuario = () => {
     }
   };
 
-  const contratoAsignado = contratos.find(
-  (contrato) =>
-    String(contrato.id_contrato) === String(usuarioData.id_contrato)
-  );
+  const contratoAsignado = competencias?.contrato;
 
 const obtenerNombreRol = (idRol) => {
   const rol = roles.find(
@@ -141,12 +141,15 @@ const obtenerNombreRol = (idRol) => {
                     {contratoAsignado ? 
                     (
                       <>
-                        <i className="bi bi-file-earmark-text me-2" style={{ color: '#3D8BF2' }}/>  {contratoAsignado.tipo}
+                        <i className="bi bi-file-earmark-text me-2" style={{ color: '#3D8BF2' }}/>
+                        {contratoAsignado.tipo_display}
+                        {contratoAsignado.modalidad && ` · ${contratoAsignado.modalidad}`}
+                        <div style={{ color: '#A0B2C6', fontSize: '13px', marginTop: '4px' }}>
+                          Turno {contratoAsignado.turno_habitual} · {contratoAsignado.horas_semanales_pactadas} h/semana
+                          {contratoAsignado.fecha_termino && ` · termina ${formatoFecha(contratoAsignado.fecha_termino)}`}
+                        </div>
                         </>
-                    ) : usuarioData.id_contrato ? 
-                    (
-                      `No se encontró el tipo para el contrato ${usuarioData.id_contrato}`
-                    ) : 
+                    ) :
                     (
                       <span style={{ color: '#E2574C' }}>
                         <i className="bi bi-exclamation-circle me-2" />
@@ -175,6 +178,100 @@ const obtenerNombreRol = (idRol) => {
                   </div>
                 </div>
               </div>
+
+              {competencias && (
+                <div className="mt-5 pt-4" style={{borderTop: '1px solid #1E3349'}}>
+                  <h5 className="text-light mb-4">Competencias</h5>
+
+                  <div className="mb-4">
+                    <label style={labelStyle}>Puestos</label>
+                    <div style={valueBoxStyle}>
+                      {competencias.puestos.length === 0 ? (
+                        <span style={{color: '#A0B2C6'}}>Sin puestos asignados</span>
+                      ) : (
+                        <div className="d-flex flex-wrap gap-2">
+                          {competencias.puestos.map((p) => (
+                            <span key={p.id_puesto} className="badge rounded-pill"
+                              style={{backgroundColor: 'rgba(61, 139, 242, 0.15)', color: '#8DB9F7', fontSize: '13px'}}>
+                              {p.nombre_puesto}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="mb-4">
+                    <label style={labelStyle}>Licencias</label>
+                    {competencias.licencias.length === 0 ? (
+                      <div style={{...valueBoxStyle, color: '#A0B2C6'}}>Sin licencias registradas</div>
+                    ) : (
+                      <div style={valueBoxStyle}>
+                        <table className="table table-sm table-borderless mb-0" style={{'--bs-table-bg': 'transparent', color: 'inherit'}}>
+                          <thead>
+                            <tr style={{color: '#A0B2C6', fontSize: '13px'}}>
+                              <th style={{color: 'inherit'}}>Tipo</th>
+                              <th style={{color: 'inherit'}}>Emisión</th>
+                              <th style={{color: 'inherit'}}>Vencimiento</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {competencias.licencias.map((l) => {
+                              const color = l.vencida ? ROJO : '#E9EEF5';
+                              return (
+                                <tr key={l.id_usuario_licencia}>
+                                  <td style={{color}}>
+                                    {l.vencida && <i className="bi bi-exclamation-circle me-2" />}
+                                    {l.nombre_licencia}
+                                  </td>
+                                  <td style={{color}}>{formatoFecha(l.fecha_emision)}</td>
+                                  <td style={{color, fontWeight: l.vencida ? 600 : 400}}>
+                                    {formatoFecha(l.fecha_vencimiento)}{l.vencida && ' · Vencida'}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="mb-2">
+                    <label style={labelStyle}>Maquinaria certificada</label>
+                    {competencias.maquinarias.length === 0 ? (
+                      <div style={{...valueBoxStyle, color: '#A0B2C6'}}>Sin certificaciones registradas</div>
+                    ) : (
+                      <div style={valueBoxStyle}>
+                        <table className="table table-sm table-borderless mb-0" style={{'--bs-table-bg': 'transparent', color: 'inherit'}}>
+                          <thead>
+                            <tr style={{color: '#A0B2C6', fontSize: '13px'}}>
+                              <th style={{color: 'inherit'}}>Máquina</th>
+                              <th style={{color: 'inherit'}}>Vencimiento</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {competencias.maquinarias.map((m) => {
+                              const color = m.vencida ? ROJO : '#E9EEF5';
+                              return (
+                                <tr key={m.id_usuario_maquinaria}>
+                                  <td style={{color}}>
+                                    {m.vencida && <i className="bi bi-exclamation-circle me-2" />}
+                                    {m.nombre_maquinaria}
+                                  </td>
+                                  <td style={{color, fontWeight: m.vencida ? 600 : 400}}>
+                                    {formatoFecha(m.fecha_vencimiento)}{m.vencida && ' · Vencida'}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>

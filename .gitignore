@@ -16,3 +16,4 @@ media/
 .env
 .vscode/
 test_media/
+backend/data/

@@ -8,6 +8,7 @@ from .serializers import CustomTokenObtainPairSerializer, RestablecerPasswordSer
 from rest_framework.permissions import AllowAny
 from .services import (
     buscar_usuario_por_identificador, crear_token_recuperacion, enviar_correo_recuperacion, validar_token,
+    crear_usuario, actualizar_usuario, desactivar_usuario, guardar_competencias, restablecer_password,
 )
 from .permissions import Permisos, TienePermiso
 from .models import Usuario, Rol, Contrato, Puesto, TipoLicencia, Maquinaria, UsuarioPuesto, UsuarioLicencia, UsuarioMaquinaria
@@ -18,7 +19,9 @@ from rest_framework.pagination import PageNumberPagination
 from .serializers import (
     PuestoSerializer, TipoLicenciaSerializer, MaquinariaSerializer,
     UsuarioPuestoSerializer, UsuarioLicenciaSerializer, UsuarioMaquinariaSerializer,
+    CompetenciasSerializer, competencias_de,
 )
+from rest_framework.decorators import action
 import logging
 
 logger = logging.getLogger(__name__)
@@ -74,13 +77,9 @@ class RestablecerPasswordView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        usuario = registro.id_usuario
-        usuario.set_password(serializer.validated_data['password'])
-        usuario.save(update_fields=['password'])
-
-        registro.usado = True
-        registro.save(update_fields=['usado'])
-
+        # Si la contraseña ya se usó, responde 400 {password: [...]} y el token
+        # queda sin usar para reintentar.
+        restablecer_password(registro, serializer.validated_data['password'])
         return Response({'mensaje': 'Contraseña actualizada.'}, status=status.HTTP_200_OK)
 
 class PaginacionUsuarios(PageNumberPagination):
@@ -128,11 +127,30 @@ class UsuarioViewSet(viewsets.ModelViewSet):
             .filter(filtro)
         )
 
-    def destroy(self, request, *args, **kwargs):
+    @action(detail=True, methods=['get', 'put'], url_path='competencias')
+    def competencias(self, request, pk=None):
+        """Contrato, puestos, licencias y maquinaria certificada del usuario.
+
+        PUT reemplaza las listas enviadas (puestos, licencias, maquinarias) y
+        devuelve `advertencias` que no bloquean el guardado.
+        """
         usuario = self.get_object()
-        usuario.estado = 'inactivo'
-        usuario.is_active = False
-        usuario.save(update_fields=['estado', 'is_active'])
+        advertencias = []
+        if request.method == 'PUT':
+            serializer = CompetenciasSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            advertencias = guardar_competencias(usuario, serializer.validated_data, actor=request.user)
+        return Response({**competencias_de(usuario), 'advertencias': advertencias})
+
+    def perform_create(self, serializer):
+        serializer.instance = crear_usuario(serializer.validated_data, actor=self.request.user)
+
+    def perform_update(self, serializer):
+        serializer.instance = actualizar_usuario(
+            serializer.instance, serializer.validated_data, actor=self.request.user)
+
+    def destroy(self, request, *args, **kwargs):
+        desactivar_usuario(self.get_object(), actor=request.user)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 class RolViewSet(viewsets.ModelViewSet ):
@@ -142,8 +160,9 @@ class RolViewSet(viewsets.ModelViewSet ):
     permission_classes = [IsAuthenticated, TienePermiso]
     permiso_requerido = Permisos.USUARIOS_GESTIONAR
 
-class ContratoViewSet(viewsets.ModelViewSet):
-    queryset = Contrato.objects.all()
+class ContratoViewSet(viewsets.ReadOnlyModelViewSet):
+    """Catálogo fijo de tipos de contrato (uno por tipo); se asigna, no se crea por la API."""
+    queryset = Contrato.objects.order_by('id_contrato')
     serializer_class = ContratoSerializer
     permission_classes = [IsAuthenticated, TienePermiso]
     permiso_requerido = Permisos.USUARIOS_GESTIONAR

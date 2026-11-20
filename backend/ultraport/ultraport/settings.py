@@ -40,6 +40,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'usuarios',
     'horario',
+    'auditoria',
     'rest_framework',
     'rest_framework_simplejwt',
     'rest_framework_simplejwt.token_blacklist',
@@ -103,6 +104,10 @@ AUTH_PASSWORD_VALIDATORS = [
     },
     {
         'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
+    },
+    {
+        # Actual + últimas 5 (usuarios/historial_password.py).
+        'NAME': 'usuarios.historial_password.NoReutilizarPasswordValidator',
     },
 ]
 

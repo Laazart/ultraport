@@ -6,6 +6,8 @@ from rest_framework.test import APITestCase
 
 from usuarios.models import Contrato, Puesto, Rol, Usuario, UsuarioPuesto
 from usuarios.permissions import Roles
+from usuarios.serializers import ContratoSerializer
+from usuarios.tests import contrato_de_tipo
 from usuarios.validar_rut import calcular_digito_verificador
 from .models import Asignacion, BloqueTurno, Malla, NotificacionInasistencia, Turno
 from .reglas import validar_asignacion
@@ -57,9 +59,8 @@ class ReglasAsignacionTests(TestCase):
         self.eventual = self._contrato('eventual', semana=None, consecutivas=None)
 
     def _contrato(self, tipo, semana, consecutivas, extra=True):
-        return Contrato.objects.create(
-            tipo=tipo, turno_habitual='rotativo', horas_semanales_pactadas=42,
-            permite_horas_extra=extra, fecha_inicio=date(2026, 1, 1),
+        return contrato_de_tipo(
+            tipo, permite_horas_extra=extra,
             max_noches_semana=semana, max_noches_consecutivas=consecutivas,
         )
 
@@ -206,7 +207,8 @@ class ReglasAsignacionTests(TestCase):
         self.assertPermitido(self._asignar(t, _dia(0), self.tercero))
 
 
-class ContratoNochesApiTests(APITestCase):
+class ContratoNochesTests(APITestCase):
+    """Límites de noches: validación del serializer y exposición por la API (solo lectura)."""
     URL = '/api/contratos/'
 
     def setUp(self):
@@ -226,24 +228,21 @@ class ContratoNochesApiTests(APITestCase):
         return datos
 
     def test_acepta_null_como_sin_limite(self):
-        resp = self.client.post(self.URL, self._payload(
-            max_noches_consecutivas=None, max_noches_semana=None), format='json')
-        self.assertEqual(resp.status_code, 201, resp.data)
-        self.assertIsNone(resp.data['max_noches_consecutivas'])
-        self.assertIsNone(resp.data['max_noches_semana'])
+        serializer = ContratoSerializer(data=self._payload(
+            max_noches_consecutivas=None, max_noches_semana=None))
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+        self.assertIsNone(serializer.validated_data['max_noches_consecutivas'])
+        self.assertIsNone(serializer.validated_data['max_noches_semana'])
 
-    def test_campos_opcionales_quedan_null(self):
-        resp = self.client.post(self.URL, self._payload(), format='json')
-        self.assertEqual(resp.status_code, 201, resp.data)
-        contrato = Contrato.objects.get(pk=resp.data['id_contrato'])
-        self.assertIsNone(contrato.max_noches_consecutivas)
-        self.assertIsNone(contrato.max_noches_semana)
+    def test_sin_limites_se_expone_null(self):
+        eventual = Contrato.objects.get(tipo='eventual')
+        detalle = self.client.get(f'{self.URL}{eventual.pk}/').data
+        self.assertIsNone(detalle['max_noches_consecutivas'])
+        self.assertIsNone(detalle['max_noches_semana'])
 
-    def test_guarda_y_expone_limites(self):
-        resp = self.client.post(self.URL, self._payload(
-            tipo='bono_turno', max_noches_consecutivas=1, max_noches_semana=2), format='json')
-        self.assertEqual(resp.status_code, 201, resp.data)
-        detalle = self.client.get(f"{self.URL}{resp.data['id_contrato']}/").data
+    def test_expone_limites(self):
+        bono = contrato_de_tipo('bono_turno', max_noches_consecutivas=1, max_noches_semana=2)
+        detalle = self.client.get(f'{self.URL}{bono.pk}/').data
         self.assertEqual(detalle['max_noches_consecutivas'], 1)
         self.assertEqual(detalle['max_noches_semana'], 2)
 
@@ -251,6 +250,6 @@ class ContratoNochesApiTests(APITestCase):
         for campo in ('max_noches_consecutivas', 'max_noches_semana'):
             for valor in (0, -1, 'abc', 2.5):
                 with self.subTest(campo=campo, valor=valor):
-                    resp = self.client.post(self.URL, self._payload(**{campo: valor}), format='json')
-                    self.assertEqual(resp.status_code, 400)
-                    self.assertIn(campo, resp.data)
+                    serializer = ContratoSerializer(data=self._payload(**{campo: valor}))
+                    self.assertFalse(serializer.is_valid())
+                    self.assertIn(campo, serializer.errors)

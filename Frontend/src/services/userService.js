@@ -66,5 +66,46 @@ const rolService = {
     return response.data;
   },
 };
-export { contratoService , rolService};
+// Contrato, puestos, licencias y maquinaria certificada de un usuario.
+// guardarCompetencias reemplaza las listas enviadas y devuelve { ..., advertencias }.
+const competenciaService = {
+  getCompetencias: async (id) => {
+    const response = await http.get(`${API_URL}${id}/competencias/`, getAuthHeaders());
+    return response.data;
+  },
+
+  guardarCompetencias: async (id, datos) => {
+    const response = await http.put(`${API_URL}${id}/competencias/`, datos, getAuthHeaders());
+    return response.data;
+  },
+};
+
+const comoLista = (data) => (Array.isArray(data) ? data : data?.results ?? []);
+
+// Catálogos para los selects de competencias.
+const catalogoService = {
+  getPuestos: async () => comoLista((await http.get(`${API_BASE}puestos/`, getAuthHeaders())).data),
+  getTiposLicencia: async () => comoLista((await http.get(`${API_BASE}tipos-licencia/`, getAuthHeaders())).data),
+  getMaquinarias: async () => comoLista((await http.get(`${API_BASE}maquinarias/`, getAuthHeaders())).data),
+};
+
+const TIPOS_CONTRATO = { bono_turno: 'Bono turno', cppt: 'CPPT', eventual: 'Eventual' };
+
+// Texto legible de un contrato: "CPPT · 7x7". Hay un contrato por tipo.
+export const etiquetaContrato = (contrato) => {
+  const tipo = TIPOS_CONTRATO[contrato.tipo] ?? contrato.tipo;
+  return contrato.modalidad ? `${tipo} · ${contrato.modalidad}` : tipo;
+};
+
+// Une en un texto los mensajes de un error de validación de DRF, incluidos
+// los de listas anidadas ({ licencias: [{ fecha_vencimiento: [...] }] }).
+export const aplanarErrores = (data) => {
+  if (data == null) return [];
+  if (typeof data === 'string') return [data];
+  if (Array.isArray(data)) return data.flatMap(aplanarErrores);
+  if (typeof data === 'object') return Object.values(data).flatMap(aplanarErrores);
+  return [String(data)];
+};
+
+export { contratoService , rolService, competenciaService, catalogoService };
 export default userService;
