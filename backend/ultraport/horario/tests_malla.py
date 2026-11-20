@@ -12,6 +12,7 @@ from usuarios.models import (
     Contrato, Puesto, Rol, TipoLicencia, Usuario, UsuarioLicencia, UsuarioPuesto,
 )
 from usuarios.permissions import Roles
+from usuarios.tests import contrato_de_tipo
 from usuarios.validar_rut import calcular_digito_verificador
 from .models import Asignacion, BloqueTurno, Malla, NotificacionInasistencia, Turno
 from .plantillas import PLANTILLA_BASE
@@ -52,9 +53,8 @@ class _BaseMalla:
         self.bono = self._contrato('bono_turno', semana=2, consecutivas=1, extra=False)
 
     def _contrato(self, tipo, semana, consecutivas, extra=True):
-        return Contrato.objects.create(
-            tipo=tipo, turno_habitual='rotativo', horas_semanales_pactadas=42,
-            permite_horas_extra=extra, fecha_inicio=date(2026, 1, 1),
+        return contrato_de_tipo(
+            tipo, permite_horas_extra=extra,
             max_noches_semana=semana, max_noches_consecutivas=consecutivas,
         )
 

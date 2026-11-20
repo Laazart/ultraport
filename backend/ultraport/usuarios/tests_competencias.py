@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import timedelta
 
 from django.utils import timezone
 from rest_framework.test import APITestCase
@@ -11,7 +11,7 @@ from .models import (
 )
 from .permissions import Roles
 from .serializers import MENSAJE_VENCIMIENTO_ANTERIOR
-from .tests import crear_usuario
+from .tests import contrato_de_tipo, crear_usuario
 
 
 def _url(usuario):
@@ -170,9 +170,7 @@ class CompetenciasTests(APITestCase):
     # --- Contrato ---
 
     def test_contrato_se_edita_y_aparece_en_competencias(self):
-        contrato = Contrato.objects.create(
-            tipo='cppt', modalidad='4x3', turno_habitual='rotativo',
-            horas_semanales_pactadas=42, fecha_inicio=date(2026, 1, 1))
+        contrato = Contrato.objects.get(tipo='cppt')
         resp = self.client.patch(
             f'/api/usuarios/{self.trabajador.pk}/', {'id_contrato': contrato.pk}, format='json')
         self.assertEqual(resp.status_code, 200)
@@ -204,9 +202,7 @@ class CompetenciasTests(APITestCase):
 class QuitarLicenciaAfectaAsignacionTests(APITestCase):
     def test_tras_quitar_licencia_ya_no_es_apto(self):
         encargado = crear_usuario('enc@test.cl', '11111111-1', rol=Roles.PLANIFICADOR)
-        contrato = Contrato.objects.create(
-            tipo='eventual', turno_habitual='rotativo', horas_semanales_pactadas=45,
-            permite_horas_extra=True, fecha_inicio=date(2026, 1, 1))
+        contrato = contrato_de_tipo('eventual', horas_semanales_pactadas=45, permite_horas_extra=True)
         trabajador = crear_usuario('trab@test.cl', '22222222-2', id_contrato=contrato)
         puesto, _ = Puesto.objects.get_or_create(nombre_puesto='Operador Grúa CT')
         licencia = TipoLicencia.objects.create(nombre_licencia='D-QL', descripcion='Clase D')

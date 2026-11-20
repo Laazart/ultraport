@@ -13,6 +13,7 @@ from rest_framework.test import APITestCase
 
 from usuarios.models import Contrato, Puesto, Rol, Usuario
 from usuarios.permissions import Roles
+from usuarios.tests import contrato_de_tipo
 from usuarios.validar_rut import calcular_digito_verificador
 from .models import Area, Asignacion, BloqueTurno, Malla, NotificacionInasistencia, Turno
 from .reportes import CONTENT_TYPE_PDF, CONTENT_TYPE_XLSX
@@ -45,10 +46,7 @@ def _encabezado_xlsx(resp):
 
 class _BaseReportes(APITestCase):
     def setUp(self):
-        self.contrato = Contrato.objects.create(
-            tipo='eventual', turno_habitual='rotativo', horas_semanales_pactadas=42,
-            fecha_inicio=date(2026, 1, 1),
-        )
+        self.contrato = contrato_de_tipo('eventual')
         self.admin = self._usuario(Roles.ADMINISTRADOR, 'admin', 'Ada', 'Admin')
         self.encargado = self._usuario(Roles.PLANIFICADOR, 'encargado', 'Ana', 'Planificadora')
         self.trabajador = self._usuario(Roles.TRABAJADOR, 'yo', 'Juan', 'Pérez')

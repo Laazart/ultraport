@@ -55,6 +55,12 @@ class Contrato(models.Model):
     fecha_creacion = models.DateTimeField(default=timezone.now)
     fecha_actualizacion = models.DateTimeField(auto_now=True)
 
+    class Meta:
+        # Contrato es un tipo compartido: los usuarios apuntan a una de estas filas.
+        constraints = [
+            models.UniqueConstraint(fields=['tipo'], name='uniq_contrato_tipo'),
+        ]
+
     def __str__(self):
         return self.get_tipo_display()
 class UsuarioManager(BaseUserManager):

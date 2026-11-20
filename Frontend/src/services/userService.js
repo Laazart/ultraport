@@ -91,11 +91,10 @@ const catalogoService = {
 
 const TIPOS_CONTRATO = { bono_turno: 'Bono turno', cppt: 'CPPT', eventual: 'Eventual' };
 
-// Texto legible de un contrato: "CPPT · 4x3 (#3)".
+// Texto legible de un contrato: "CPPT · 7x7". Hay un contrato por tipo.
 export const etiquetaContrato = (contrato) => {
   const tipo = TIPOS_CONTRATO[contrato.tipo] ?? contrato.tipo;
-  const modalidad = contrato.modalidad ? ` · ${contrato.modalidad}` : '';
-  return `${tipo}${modalidad} (#${contrato.id_contrato})`;
+  return contrato.modalidad ? `${tipo} · ${contrato.modalidad}` : tipo;
 };
 
 // Une en un texto los mensajes de un error de validación de DRF, incluidos

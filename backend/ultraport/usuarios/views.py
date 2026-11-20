@@ -160,8 +160,9 @@ class RolViewSet(viewsets.ModelViewSet ):
     permission_classes = [IsAuthenticated, TienePermiso]
     permiso_requerido = Permisos.USUARIOS_GESTIONAR
 
-class ContratoViewSet(viewsets.ModelViewSet):
-    queryset = Contrato.objects.all()
+class ContratoViewSet(viewsets.ReadOnlyModelViewSet):
+    """Catálogo fijo de tipos de contrato (uno por tipo); se asigna, no se crea por la API."""
+    queryset = Contrato.objects.order_by('id_contrato')
     serializer_class = ContratoSerializer
     permission_classes = [IsAuthenticated, TienePermiso]
     permiso_requerido = Permisos.USUARIOS_GESTIONAR

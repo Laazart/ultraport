@@ -19,6 +19,24 @@ USUARIOS_URL = '/api/usuarios/'
 PASSWORD = 'clave-segura-123'
 
 
+def contrato_de_tipo(tipo, **valores):
+    """
+    Contrato del tipo dado con las condiciones indicadas.
+
+    Hay un contrato por tipo (sembrado por la migración 0008), así que se
+    actualiza ese en vez de crear otro. Los campos omitidos toman los mismos
+    valores por defecto que tendría un Contrato.objects.create().
+    """
+    datos = {
+        'modalidad': None, 'turno_habitual': 'rotativo', 'horas_semanales_pactadas': 42,
+        'permite_horas_extra': False, 'max_noches_semana': None, 'max_noches_consecutivas': None,
+        'fecha_inicio': date(2026, 1, 1), 'fecha_termino': None,
+    }
+    datos.update(valores)
+    contrato, _ = Contrato.objects.update_or_create(tipo=tipo, defaults=datos)
+    return contrato
+
+
 def crear_usuario(correo, rut, rol=Roles.TRABAJADOR, **extra):
     return Usuario.objects.create_user(
         correo, rut, 'Juan', 'Pérez', PASSWORD, id_rol=Rol.objects.get(pk=rol), **extra)
@@ -219,9 +237,7 @@ class SolicitarRecuperacionTests(APITestCase):
 
 class ListadoUsuariosTests(APITestCase):
     def setUp(self):
-        contrato = Contrato.objects.create(
-            tipo='cppt', turno_habitual='rotativo', horas_semanales_pactadas=45,
-            fecha_inicio=date(2026, 1, 1))
+        contrato = contrato_de_tipo('cppt', horas_semanales_pactadas=45)
         self.planificador = crear_usuario('plan@test.cl', '11111111-1', Roles.PLANIFICADOR)
         self.con_contrato = crear_usuario('cppt@test.cl', '22222222-2', id_contrato=contrato)
         self.sin_contrato = crear_usuario('sin@test.cl', '33333333-3')
