@@ -19,7 +19,8 @@ from .serializers import (
 )
 from .services import (
     asignar_usuario, autocompletar_malla, iniciar_planificacion, mover_asignacion,
-    publicar_malla, quitar_asignacion, reemplazar_asignacion, requerimientos_desde_plantilla
+    publicar_malla, quitar_asignacion, reemplazar_asignacion, requerimientos_desde_plantilla,
+    crear_inasistencia, cambiar_estado_inasistencia,
 )
 from .reportes import pdf_inasistencias, pdf_malla, xlsx_inasistencias, xlsx_malla
 class MisAvisosView(generics.ListCreateAPIView):
@@ -34,7 +35,8 @@ class MisAvisosView(generics.ListCreateAPIView):
         )
 
     def perform_create(self, serializer):
-        serializer.save(id_usuario=self.request.user)
+        # El trabajador sale del token, nunca del body.
+        serializer.instance = crear_inasistencia(serializer.validated_data, actor=self.request.user)
 
 
 class AvisosListView(generics.ListAPIView):
@@ -59,8 +61,8 @@ class CambiarEstadoView(APIView):
         serializer = CambiarEstadoSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        notificacion.estado = serializer.validated_data['estado']
-        notificacion.save(update_fields=['estado'])
+        cambiar_estado_inasistencia(
+            notificacion, serializer.validated_data['estado'], actor=request.user)
 
         return Response(
             NotificacionInasistenciaSerializer(notificacion, context={'request': request}).data,
@@ -102,6 +104,7 @@ class MallaViewSet(viewsets.ReadOnlyModelViewSet):
             fecha=fecha,
             requerimientos=requerimientos_desde_plantilla(),
             creado_por=request.user,
+            plantilla=True,
         )
         return Response(MallaSerializer(malla).data, status=status.HTTP_201_CREATED)
     @action(detail=False, methods=['post'], url_path='iniciar')
@@ -118,12 +121,12 @@ class MallaViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=True, methods=['post'])
     def autocompletar(self, request, pk=None):
         malla = self.get_object()
-        creadas = autocompletar_malla(malla)
+        creadas = autocompletar_malla(malla, actor=request.user)
         return Response({'asignados': len(creadas)})
 
     @action(detail=True, methods=['post'])
     def publicar(self, request, pk=None):
-        malla = publicar_malla(self.get_object())
+        malla = publicar_malla(self.get_object(), actor=request.user)
         return Response(MallaSerializer(malla).data)
 
 
@@ -177,17 +180,18 @@ class AsignacionViewSet(
         serializer.instance = asignar_usuario(
             turno=serializer.validated_data['id_turno'],
             usuario=serializer.validated_data['id_usuario'],
+            actor=self.request.user,
         )
 
     def perform_destroy(self, instance):
-        quitar_asignacion(instance)
+        quitar_asignacion(instance, actor=self.request.user)
 
     @action(detail=True, methods=['post'])
     def reemplazar(self, request, pk=None):
         asignacion = self.get_object()
         serializer = ReemplazarAsignacionSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        nueva = reemplazar_asignacion(asignacion, serializer.validated_data['id_usuario'])
+        nueva = reemplazar_asignacion(asignacion, serializer.validated_data['id_usuario'], actor=request.user)
         return Response(AsignacionSerializer(nueva).data)
 
     @action(detail=True, methods=['post'])
@@ -195,7 +199,7 @@ class AsignacionViewSet(
         asignacion = self.get_object()
         serializer = MoverAsignacionSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        resultado = mover_asignacion(asignacion, serializer.validated_data['id_turno'])
+        resultado = mover_asignacion(asignacion, serializer.validated_data['id_turno'], actor=request.user)
         return Response(AsignacionSerializer(resultado).data)
 
 
