@@ -11,8 +11,11 @@ from rest_framework.test import APITestCase
 
 from horario.models import Asignacion, Malla, NotificacionInasistencia
 from horario.tests_malla import _BaseMalla, _rut_valido
-from usuarios.models import Rol, Usuario
+from usuarios.models import Contrato, Puesto, Rol, TipoLicencia, Usuario
 from usuarios.permissions import Roles
+from usuarios.serializers import UsuarioSerializer
+from usuarios.services import crear_token_recuperacion
+from usuarios.tests import PASSWORD, crear_usuario
 
 from . import services as auditoria_services
 from .acciones import Acciones, Entidades
@@ -268,3 +271,181 @@ class AuditoriaInasistenciasTests(_BaseAuditoria, APITestCase):
         self.assertNotIn(MOTIVO_SENSIBLE, texto)
         self.assertNotIn('licencia', texto)
         self.assertNotIn('motivo', texto)
+
+
+# --- Usuarios ---
+
+NUEVA_PASSWORD = 'Muelle-Sur-99x'
+
+
+class AuditoriaUsuariosTests(APITestCase):
+    def setUp(self):
+        self.encargado = crear_usuario('enc@test.cl', '11111111-1', rol=Roles.PLANIFICADOR)
+        self.trabajador = crear_usuario('trab@test.cl', '22222222-2')
+        self.client.force_authenticate(self.encargado)
+        self.url = f'/api/usuarios/{self.trabajador.pk}/'
+
+    def _registros(self, accion=None):
+        qs = RegistroAuditoria.objects.all()
+        return qs.filter(accion=accion) if accion else qs
+
+    def assertRegistro(self, accion, id_entidad, actor=None):
+        registros = self._registros(accion)
+        self.assertEqual(registros.count(), 1, f'{accion}: {list(registros.values())}')
+        registro = registros.get()
+        self.assertEqual(registro.entidad, Entidades.USUARIO)
+        self.assertEqual(registro.id_entidad, id_entidad)
+        self.assertEqual(registro.actor, actor or self.encargado)
+        return registro
+
+    # --- Crear / editar ---
+
+    def test_crear(self):
+        resp = self.client.post('/api/usuarios/', {
+            'rut': '12.345.678-5', 'nombres': 'Ana', 'apellidos': 'Soto', 'correo': 'ana@test.cl',
+            'telefono': '912345678', 'id_rol': Roles.TRABAJADOR, 'password': PASSWORD,
+        }, format='json')
+        self.assertEqual(resp.status_code, 201, resp.data)
+        registro = self.assertRegistro(Acciones.USUARIO_CREAR, resp.data['id_usuario'])
+        self.assertEqual(registro.detalle, {'rol': Roles.TRABAJADOR, 'contrato': None, 'estado': 'activo'})
+        self.assertNotIn('password', resp.data)
+
+    def test_crear_invalido_no_registra(self):
+        resp = self.client.post('/api/usuarios/', {
+            'rut': '12.345.678-9', 'nombres': 'Ana', 'apellidos': 'Soto', 'correo': 'ana@test.cl',
+            'telefono': '912345678', 'id_rol': Roles.TRABAJADOR, 'password': PASSWORD,
+        }, format='json')
+        self.assertEqual(resp.status_code, 400)
+        self.assertFalse(self._registros().exists())
+
+    def test_editar_registra_solo_nombres_de_campos(self):
+        resp = self.client.patch(self.url, {'nombres': 'Pedro', 'telefono': '987654321'}, format='json')
+        self.assertEqual(resp.status_code, 200, resp.data)
+        registro = self.assertRegistro(Acciones.USUARIO_EDITAR, self.trabajador.pk)
+        self.assertEqual(registro.detalle, {'campos': ['nombres', 'telefono']})
+        self.assertNotIn('Pedro', _texto_detalles())
+        self.assertNotIn('987654321', _texto_detalles())
+        self.assertEqual(self._registros().count(), 1)
+
+    def test_editar_sin_cambios_no_registra(self):
+        resp = self.client.patch(self.url, {'nombres': self.trabajador.nombres}, format='json')
+        self.assertEqual(resp.status_code, 200)
+        self.assertFalse(self._registros().exists())
+
+    # --- Desactivar / reactivar ---
+
+    def test_desactivar_por_baja(self):
+        self.assertEqual(self.client.delete(self.url).status_code, 204)
+        registro = self.assertRegistro(Acciones.USUARIO_DESACTIVAR, self.trabajador.pk)
+        self.assertEqual(registro.detalle, {'via': 'baja'})
+        # Una segunda baja no cambia nada y no registra.
+        self.assertEqual(self.client.delete(self.url).status_code, 204)
+        self.assertEqual(self._registros().count(), 1)
+
+    def test_desactivar_y_reactivar_por_edicion(self):
+        self.client.patch(self.url, {'estado': 'inactivo'}, format='json')
+        self.assertRegistro(Acciones.USUARIO_DESACTIVAR, self.trabajador.pk)
+        self.client.patch(self.url, {'estado': 'activo'}, format='json')
+        registro = self.assertRegistro(Acciones.USUARIO_REACTIVAR, self.trabajador.pk)
+        self.assertEqual(registro.detalle, {'via': 'edicion'})
+        self.assertFalse(self._registros(Acciones.USUARIO_EDITAR).exists())
+
+    # --- Contrato ---
+
+    def test_cambio_de_contrato(self):
+        cppt = Contrato.objects.get(tipo='cppt')
+        self.client.patch(self.url, {'id_contrato': cppt.pk}, format='json')
+        registro = self.assertRegistro(Acciones.USUARIO_CONTRATO, self.trabajador.pk)
+        self.assertEqual(registro.detalle, {'de': None, 'a': 'cppt'})
+
+        eventual = Contrato.objects.get(tipo='eventual')
+        self.client.patch(self.url, {'id_contrato': eventual.pk}, format='json')
+        ultimo = self._registros(Acciones.USUARIO_CONTRATO).first()
+        self.assertEqual(ultimo.detalle, {'de': 'cppt', 'a': 'eventual'})
+
+    # --- Contraseña ---
+
+    def test_password_por_edicion_registra_solo_el_hecho(self):
+        resp = self.client.patch(self.url, {'password': NUEVA_PASSWORD}, format='json')
+        self.assertEqual(resp.status_code, 200, resp.data)
+        registro = self.assertRegistro(Acciones.USUARIO_PASSWORD, self.trabajador.pk)
+        self.assertEqual(registro.detalle, {'via': 'edicion'})
+        self.assertFalse(self._registros(Acciones.USUARIO_EDITAR).exists())
+
+    def test_password_reutilizada_no_registra(self):
+        resp = self.client.patch(self.url, {'password': PASSWORD}, format='json')
+        self.assertEqual(resp.status_code, 400)
+        self.assertFalse(self._registros().exists())
+
+    def test_restablecer_el_actor_es_el_propio_usuario(self):
+        self.client.force_authenticate(None)
+        token = crear_token_recuperacion(self.trabajador)
+        resp = self.client.post('/api/restablecer-password/', {'token': token, 'password': NUEVA_PASSWORD}, format='json')
+        self.assertEqual(resp.status_code, 200, resp.data)
+        registro = self.assertRegistro(Acciones.USUARIO_PASSWORD, self.trabajador.pk, actor=self.trabajador)
+        self.assertEqual(registro.detalle, {'via': 'restablecer'})
+
+    def test_restablecer_con_password_reutilizada_no_registra(self):
+        self.client.force_authenticate(None)
+        token = crear_token_recuperacion(self.trabajador)
+        resp = self.client.post('/api/restablecer-password/', {'token': token, 'password': PASSWORD}, format='json')
+        self.assertEqual(resp.status_code, 400)
+        self.assertFalse(self._registros().exists())
+
+    def test_ningun_registro_contiene_passwords_hashes_ni_tokens(self):
+        self.client.patch(self.url, {'password': NUEVA_PASSWORD}, format='json')
+        self.client.force_authenticate(None)
+        token = crear_token_recuperacion(self.trabajador)
+        self.client.post('/api/restablecer-password/', {'token': token, 'password': 'Muelle-Este-77x'}, format='json')
+        self.trabajador.refresh_from_db()
+
+        self.assertEqual(self._registros(Acciones.USUARIO_PASSWORD).count(), 2)
+        texto = _texto_detalles()
+        for sensible in (PASSWORD, NUEVA_PASSWORD, 'Muelle-Este-77x', token, self.trabajador.password, 'pbkdf2'):
+            self.assertNotIn(sensible, texto)
+
+    # --- Competencias ---
+
+    def _put_competencias(self, datos):
+        return self.client.put(f'{self.url}competencias/', datos, format='json')
+
+    def test_competencias_registra_resumen_y_no_repite_sin_cambios(self):
+        puesto = Puesto.objects.create(nombre_puesto='Puesto auditoría')
+        tipo = TipoLicencia.objects.create(nombre_licencia='Z-AUD', descripcion='Prueba')
+        hoy = timezone.localdate()
+        datos = {
+            'puestos': [puesto.pk],
+            'licencias': [{'id_tipo_licencia': tipo.pk, 'fecha_emision': str(hoy),
+                           'fecha_vencimiento': str(hoy + timedelta(days=30))}],
+        }
+        self.assertEqual(self._put_competencias(datos).status_code, 200)
+        registro = self.assertRegistro(Acciones.USUARIO_COMPETENCIAS, self.trabajador.pk)
+        self.assertEqual(registro.detalle['puestos']['agregados'], [puesto.pk])
+        self.assertEqual(registro.detalle['licencias']['agregados'], [tipo.pk])
+        self.assertEqual(registro.detalle['advertencias'], 0)
+
+        # Mismo contenido: no hay cambios, no hay registro nuevo.
+        self.assertEqual(self._put_competencias(datos).status_code, 200)
+        self.assertEqual(self._registros().count(), 1)
+
+        # Quitar todo queda como 'quitados'.
+        self._put_competencias({'puestos': [], 'licencias': []})
+        ultimo = self._registros(Acciones.USUARIO_COMPETENCIAS).first()
+        self.assertEqual(ultimo.detalle['puestos']['quitados'], [puesto.pk])
+        self.assertEqual(ultimo.detalle['licencias']['quitados'], [tipo.pk])
+
+    def test_competencias_invalidas_no_registran(self):
+        tipo = TipoLicencia.objects.create(nombre_licencia='Z-AUD2', descripcion='Prueba')
+        hoy = timezone.localdate()
+        resp = self._put_competencias({'licencias': [
+            {'id_tipo_licencia': tipo.pk, 'fecha_emision': str(hoy), 'fecha_vencimiento': str(hoy)}]})
+        self.assertEqual(resp.status_code, 400)
+        self.assertFalse(self._registros().exists())
+
+    # --- El serializer no guarda por su cuenta ---
+
+    def test_serializer_no_guarda_sin_el_servicio(self):
+        serializer = UsuarioSerializer(self.trabajador, data={'nombres': 'X'}, partial=True)
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+        with self.assertRaises(NotImplementedError):
+            serializer.save()

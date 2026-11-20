@@ -2,16 +2,13 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from rest_framework_simplejwt.settings import api_settings as jwt_settings
 from rest_framework.exceptions import AuthenticationFailed
 from .models import Usuario, Rol , Contrato, Puesto, UsuarioPuesto, TipoLicencia, UsuarioLicencia, Maquinaria, UsuarioMaquinaria
-from .services import buscar_usuario_por_identificador
-from .historial_password import MENSAJE_PASSWORD_REUTILIZADA, password_reutilizada
+from .services import buscar_usuario_por_identificador, esta_vencida
 from rest_framework import serializers
 from django.contrib.auth import authenticate
 from django.contrib.auth.models import update_last_login
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.validators import RegexValidator
-from django.db import transaction
-from django.utils import timezone
 from .validar_rut import validar_rut_modulo_11, normalizar_rut
 
 MENSAJE_CREDENCIALES_INVALIDAS = 'RUT, correo o contraseña incorrectos'
@@ -116,27 +113,16 @@ class UsuarioSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         if self.instance is None and not attrs.get('password'):
             raise serializers.ValidationError({'password': 'La contraseña es obligatoria.'})
-        if self.instance is not None and attrs.get('password') \
-                and password_reutilizada(self.instance, attrs['password']):
-            raise serializers.ValidationError({'password': MENSAJE_PASSWORD_REUTILIZADA})
+        # La reutilización de contraseñas la verifica usuarios.services.actualizar_usuario.
         return attrs
+
+    # Crear y editar pasan por usuarios.services (hash de contraseña, historial y
+    # auditoría). save() directo saltaría todo eso, así que se bloquea.
     def create(self, validated_data):
-        password = validated_data.pop('password')
-        usuario = Usuario(**validated_data)
-        usuario.set_password(password)
-        usuario.save()
-        return usuario
+        raise NotImplementedError('Usa usuarios.services.crear_usuario().')
+
     def update(self, instance, validated_data):
-        password = validated_data.pop('password', None)
-        for attr, valor in validated_data.items():
-            setattr(instance, attr, valor)
-        if 'estado' in validated_data:
-            # is_active sigue a estado en ambos sentidos (reactivar/desactivar).
-            instance.is_active = instance.estado == 'activo'
-        if password:
-            instance.set_password(password)
-        instance.save()
-        return instance
+        raise NotImplementedError('Usa usuarios.services.actualizar_usuario().')
 
 class RolSerializer(serializers.ModelSerializer):
     id_rol = serializers.IntegerField(read_only=True,help_text='Identificador del rol.',)
@@ -224,8 +210,6 @@ class UsuarioMaquinariaSerializer(serializers.ModelSerializer):
 
 # --- Competencias de un trabajador (contrato, puestos, licencias, maquinaria) ---
 
-def _esta_vencida(fecha_vencimiento):
-    return fecha_vencimiento is not None and fecha_vencimiento < timezone.localdate()
 
 
 class ContratoResumenSerializer(serializers.ModelSerializer):
@@ -255,7 +239,7 @@ class LicenciaAsignadaSerializer(serializers.ModelSerializer):
                   'fecha_emision', 'fecha_vencimiento', 'vencida']
 
     def get_vencida(self, obj):
-        return _esta_vencida(obj.fecha_vencimiento)
+        return esta_vencida(obj.fecha_vencimiento)
 
 
 class MaquinariaCertificadaSerializer(serializers.ModelSerializer):
@@ -270,7 +254,7 @@ class MaquinariaCertificadaSerializer(serializers.ModelSerializer):
                   'id_tipo_licencia_requerida', 'fecha_vencimiento', 'vencida']
 
     def get_vencida(self, obj):
-        return _esta_vencida(obj.fecha_vencimiento)
+        return esta_vencida(obj.fecha_vencimiento)
 
 
 def competencias_de(usuario):
@@ -335,64 +319,4 @@ class CompetenciasSerializer(serializers.Serializer):
             vistos.add(maquina.pk)
         return value
 
-    def advertencias(self, usuario):
-        """Máquinas certificadas sin la licencia vigente que requieren (no bloquea)."""
-        datos = self.validated_data
-        if 'licencias' in datos:
-            licencias = {l['id_tipo_licencia'].pk: l['fecha_vencimiento'] for l in datos['licencias']}
-        else:
-            licencias = dict(usuario.licencias.values_list('id_tipo_licencia_id', 'fecha_vencimiento'))
-        if 'maquinarias' in datos:
-            maquinas = [m['id_maquinaria'] for m in datos['maquinarias']]
-        else:
-            maquinas = [m.id_maquinaria for m in usuario.maquinarias.select_related(
-                'id_maquinaria__id_tipo_licencia_requerida')]
-
-        avisos = []
-        for maquina in maquinas:
-            requerida = maquina.id_tipo_licencia_requerida
-            if requerida is None:
-                continue
-            if requerida.pk not in licencias:
-                avisos.append(
-                    f'{maquina.nombre_maquinaria} requiere la licencia {requerida.nombre_licencia}, '
-                    'que el trabajador no tiene.')
-            elif _esta_vencida(licencias[requerida.pk]):
-                avisos.append(
-                    f'{maquina.nombre_maquinaria} requiere la licencia {requerida.nombre_licencia}, '
-                    'que está vencida.')
-        return avisos
-
-    @transaction.atomic
-    def guardar(self, usuario):
-        datos = self.validated_data
-
-        if 'puestos' in datos:
-            ids = {p.pk for p in datos['puestos']}
-            usuario.puestos.exclude(id_puesto__in=ids).delete()
-            actuales = set(usuario.puestos.values_list('id_puesto_id', flat=True))
-            UsuarioPuesto.objects.bulk_create(
-                UsuarioPuesto(id_usuario=usuario, id_puesto_id=pk) for pk in ids - actuales)
-
-        if 'licencias' in datos:
-            actuales = {l.id_tipo_licencia_id: l for l in usuario.licencias.all()}
-            entrantes = {l['id_tipo_licencia'].pk for l in datos['licencias']}
-            usuario.licencias.exclude(id_tipo_licencia__in=entrantes).delete()
-            for item in datos['licencias']:
-                licencia = actuales.get(item['id_tipo_licencia'].pk) or UsuarioLicencia(
-                    id_usuario=usuario, id_tipo_licencia=item['id_tipo_licencia'], especialidades='')
-                licencia.fecha_emision = item['fecha_emision']
-                licencia.fecha_vencimiento = item['fecha_vencimiento']
-                if 'especialidades' in item:
-                    licencia.especialidades = item['especialidades']
-                licencia.save()
-
-        if 'maquinarias' in datos:
-            actuales = {m.id_maquinaria_id: m for m in usuario.maquinarias.all()}
-            entrantes = {m['id_maquinaria'].pk for m in datos['maquinarias']}
-            usuario.maquinarias.exclude(id_maquinaria__in=entrantes).delete()
-            for item in datos['maquinarias']:
-                certificacion = actuales.get(item['id_maquinaria'].pk) or UsuarioMaquinaria(
-                    id_usuario=usuario, id_maquinaria=item['id_maquinaria'])
-                certificacion.fecha_vencimiento = item.get('fecha_vencimiento')
-                certificacion.save()
+    # El guardado y las advertencias están en usuarios.services.guardar_competencias.

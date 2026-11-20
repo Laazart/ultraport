@@ -8,9 +8,9 @@ from .serializers import CustomTokenObtainPairSerializer, RestablecerPasswordSer
 from rest_framework.permissions import AllowAny
 from .services import (
     buscar_usuario_por_identificador, crear_token_recuperacion, enviar_correo_recuperacion, validar_token,
+    crear_usuario, actualizar_usuario, desactivar_usuario, guardar_competencias, restablecer_password,
 )
 from .permissions import Permisos, TienePermiso
-from .historial_password import MENSAJE_PASSWORD_REUTILIZADA, password_reutilizada
 from .models import Usuario, Rol, Contrato, Puesto, TipoLicencia, Maquinaria, UsuarioPuesto, UsuarioLicencia, UsuarioMaquinaria
 from django.utils import timezone
 from django.db.models import Q, Value
@@ -77,20 +77,9 @@ class RestablecerPasswordView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        usuario = registro.id_usuario
-        password = serializer.validated_data['password']
-        if password_reutilizada(usuario, password):
-            # El token no se marca como usado: puede reintentar con otra contraseña.
-            return Response(
-                {'password': [MENSAJE_PASSWORD_REUTILIZADA]},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        usuario.set_password(password)
-        usuario.save(update_fields=['password'])  # registra la anterior en el historial
-
-        registro.usado = True
-        registro.save(update_fields=['usado'])
-
+        # Si la contraseña ya se usó, responde 400 {password: [...]} y el token
+        # queda sin usar para reintentar.
+        restablecer_password(registro, serializer.validated_data['password'])
         return Response({'mensaje': 'Contraseña actualizada.'}, status=status.HTTP_200_OK)
 
 class PaginacionUsuarios(PageNumberPagination):
@@ -150,15 +139,18 @@ class UsuarioViewSet(viewsets.ModelViewSet):
         if request.method == 'PUT':
             serializer = CompetenciasSerializer(data=request.data)
             serializer.is_valid(raise_exception=True)
-            serializer.guardar(usuario)
-            advertencias = serializer.advertencias(usuario)
+            advertencias = guardar_competencias(usuario, serializer.validated_data, actor=request.user)
         return Response({**competencias_de(usuario), 'advertencias': advertencias})
 
+    def perform_create(self, serializer):
+        serializer.instance = crear_usuario(serializer.validated_data, actor=self.request.user)
+
+    def perform_update(self, serializer):
+        serializer.instance = actualizar_usuario(
+            serializer.instance, serializer.validated_data, actor=self.request.user)
+
     def destroy(self, request, *args, **kwargs):
-        usuario = self.get_object()
-        usuario.estado = 'inactivo'
-        usuario.is_active = False
-        usuario.save(update_fields=['estado', 'is_active'])
+        desactivar_usuario(self.get_object(), actor=request.user)
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 class RolViewSet(viewsets.ModelViewSet ):
