@@ -9,6 +9,8 @@ from django.contrib.auth.models import update_last_login
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.core.validators import RegexValidator
+from django.db import transaction
+from django.utils import timezone
 from .validar_rut import validar_rut_modulo_11, normalizar_rut
 
 MENSAJE_CREDENCIALES_INVALIDAS = 'RUT, correo o contraseña incorrectos'
@@ -187,14 +189,206 @@ class UsuarioPuestoSerializer(serializers.ModelSerializer):
         fields = ['id_usuario_puesto', 'id_usuario', 'id_puesto', 'fecha_asignacion']
 
 
+MENSAJE_VENCIMIENTO_ANTERIOR = 'La fecha de vencimiento debe ser posterior a la fecha de emisión.'
+
+
+def _validar_fechas_licencia(emision, vencimiento):
+    if emision and vencimiento and vencimiento <= emision:
+        raise serializers.ValidationError({'fecha_vencimiento': MENSAJE_VENCIMIENTO_ANTERIOR})
+
+
 class UsuarioLicenciaSerializer(serializers.ModelSerializer):
     class Meta:
         model = UsuarioLicencia
         fields = ['id_usuario_licencia', 'id_usuario', 'id_tipo_licencia',
                   'especialidades', 'fecha_emision', 'fecha_vencimiento', 'url_adjunto']
 
+    def validate(self, attrs):
+        instancia = self.instance
+        _validar_fechas_licencia(
+            attrs.get('fecha_emision', getattr(instancia, 'fecha_emision', None)),
+            attrs.get('fecha_vencimiento', getattr(instancia, 'fecha_vencimiento', None)),
+        )
+        return attrs
+
 
 class UsuarioMaquinariaSerializer(serializers.ModelSerializer):
     class Meta:
         model = UsuarioMaquinaria
         fields = ['id_usuario_maquinaria', 'id_usuario', 'id_maquinaria', 'fecha_vencimiento']
+
+
+# --- Competencias de un trabajador (contrato, puestos, licencias, maquinaria) ---
+
+def _esta_vencida(fecha_vencimiento):
+    return fecha_vencimiento is not None and fecha_vencimiento < timezone.localdate()
+
+
+class ContratoResumenSerializer(serializers.ModelSerializer):
+    tipo_display = serializers.CharField(source='get_tipo_display', read_only=True)
+
+    class Meta:
+        model = Contrato
+        fields = ['id_contrato', 'tipo', 'tipo_display', 'modalidad', 'turno_habitual',
+                  'horas_semanales_pactadas', 'fecha_inicio', 'fecha_termino']
+
+
+class PuestoAsignadoSerializer(serializers.ModelSerializer):
+    nombre_puesto = serializers.CharField(source='id_puesto.nombre_puesto', read_only=True)
+
+    class Meta:
+        model = UsuarioPuesto
+        fields = ['id_puesto', 'nombre_puesto', 'fecha_asignacion']
+
+
+class LicenciaAsignadaSerializer(serializers.ModelSerializer):
+    nombre_licencia = serializers.CharField(source='id_tipo_licencia.nombre_licencia', read_only=True)
+    vencida = serializers.SerializerMethodField()
+
+    class Meta:
+        model = UsuarioLicencia
+        fields = ['id_usuario_licencia', 'id_tipo_licencia', 'nombre_licencia', 'especialidades',
+                  'fecha_emision', 'fecha_vencimiento', 'vencida']
+
+    def get_vencida(self, obj):
+        return _esta_vencida(obj.fecha_vencimiento)
+
+
+class MaquinariaCertificadaSerializer(serializers.ModelSerializer):
+    nombre_maquinaria = serializers.CharField(source='id_maquinaria.nombre_maquinaria', read_only=True)
+    id_tipo_licencia_requerida = serializers.IntegerField(
+        source='id_maquinaria.id_tipo_licencia_requerida_id', read_only=True)
+    vencida = serializers.SerializerMethodField()
+
+    class Meta:
+        model = UsuarioMaquinaria
+        fields = ['id_usuario_maquinaria', 'id_maquinaria', 'nombre_maquinaria',
+                  'id_tipo_licencia_requerida', 'fecha_vencimiento', 'vencida']
+
+    def get_vencida(self, obj):
+        return _esta_vencida(obj.fecha_vencimiento)
+
+
+def competencias_de(usuario):
+    """Representación de lectura de las competencias de un usuario."""
+    return {
+        'contrato': ContratoResumenSerializer(usuario.id_contrato).data if usuario.id_contrato else None,
+        'puestos': PuestoAsignadoSerializer(
+            usuario.puestos.select_related('id_puesto').order_by('id_puesto__nombre_puesto'),
+            many=True).data,
+        'licencias': LicenciaAsignadaSerializer(
+            usuario.licencias.select_related('id_tipo_licencia').order_by('id_tipo_licencia__nombre_licencia'),
+            many=True).data,
+        'maquinarias': MaquinariaCertificadaSerializer(
+            usuario.maquinarias.select_related('id_maquinaria').order_by('id_maquinaria__nombre_maquinaria'),
+            many=True).data,
+    }
+
+
+class LicenciaEntradaSerializer(serializers.Serializer):
+    id_tipo_licencia = serializers.PrimaryKeyRelatedField(queryset=TipoLicencia.objects.all())
+    fecha_emision = serializers.DateField()
+    fecha_vencimiento = serializers.DateField()
+    especialidades = serializers.CharField(max_length=255, required=False, allow_blank=True)
+
+    def validate(self, attrs):
+        _validar_fechas_licencia(attrs['fecha_emision'], attrs['fecha_vencimiento'])
+        return attrs
+
+
+class MaquinariaEntradaSerializer(serializers.Serializer):
+    id_maquinaria = serializers.PrimaryKeyRelatedField(queryset=Maquinaria.objects.all())
+    fecha_vencimiento = serializers.DateField(allow_null=True, required=False)
+
+
+class CompetenciasSerializer(serializers.Serializer):
+    """
+    Reemplaza puestos, licencias y maquinaria certificada de un usuario.
+
+    Las licencias se emparejan por tipo y las máquinas por máquina: las que ya
+    existen se actualizan, las nuevas se crean y las que no vienen se quitan.
+    """
+    puestos = serializers.ListField(
+        child=serializers.PrimaryKeyRelatedField(queryset=Puesto.objects.all()), required=False)
+    licencias = LicenciaEntradaSerializer(many=True, required=False)
+    maquinarias = MaquinariaEntradaSerializer(many=True, required=False)
+
+    def validate_licencias(self, value):
+        vistos = set()
+        for item in value:
+            tipo = item['id_tipo_licencia']
+            if tipo.pk in vistos:
+                raise serializers.ValidationError(f'La licencia {tipo.nombre_licencia} está repetida.')
+            vistos.add(tipo.pk)
+        return value
+
+    def validate_maquinarias(self, value):
+        vistos = set()
+        for item in value:
+            maquina = item['id_maquinaria']
+            if maquina.pk in vistos:
+                raise serializers.ValidationError(f'La máquina {maquina.nombre_maquinaria} está repetida.')
+            vistos.add(maquina.pk)
+        return value
+
+    def advertencias(self, usuario):
+        """Máquinas certificadas sin la licencia vigente que requieren (no bloquea)."""
+        datos = self.validated_data
+        if 'licencias' in datos:
+            licencias = {l['id_tipo_licencia'].pk: l['fecha_vencimiento'] for l in datos['licencias']}
+        else:
+            licencias = dict(usuario.licencias.values_list('id_tipo_licencia_id', 'fecha_vencimiento'))
+        if 'maquinarias' in datos:
+            maquinas = [m['id_maquinaria'] for m in datos['maquinarias']]
+        else:
+            maquinas = [m.id_maquinaria for m in usuario.maquinarias.select_related(
+                'id_maquinaria__id_tipo_licencia_requerida')]
+
+        avisos = []
+        for maquina in maquinas:
+            requerida = maquina.id_tipo_licencia_requerida
+            if requerida is None:
+                continue
+            if requerida.pk not in licencias:
+                avisos.append(
+                    f'{maquina.nombre_maquinaria} requiere la licencia {requerida.nombre_licencia}, '
+                    'que el trabajador no tiene.')
+            elif _esta_vencida(licencias[requerida.pk]):
+                avisos.append(
+                    f'{maquina.nombre_maquinaria} requiere la licencia {requerida.nombre_licencia}, '
+                    'que está vencida.')
+        return avisos
+
+    @transaction.atomic
+    def guardar(self, usuario):
+        datos = self.validated_data
+
+        if 'puestos' in datos:
+            ids = {p.pk for p in datos['puestos']}
+            usuario.puestos.exclude(id_puesto__in=ids).delete()
+            actuales = set(usuario.puestos.values_list('id_puesto_id', flat=True))
+            UsuarioPuesto.objects.bulk_create(
+                UsuarioPuesto(id_usuario=usuario, id_puesto_id=pk) for pk in ids - actuales)
+
+        if 'licencias' in datos:
+            actuales = {l.id_tipo_licencia_id: l for l in usuario.licencias.all()}
+            entrantes = {l['id_tipo_licencia'].pk for l in datos['licencias']}
+            usuario.licencias.exclude(id_tipo_licencia__in=entrantes).delete()
+            for item in datos['licencias']:
+                licencia = actuales.get(item['id_tipo_licencia'].pk) or UsuarioLicencia(
+                    id_usuario=usuario, id_tipo_licencia=item['id_tipo_licencia'], especialidades='')
+                licencia.fecha_emision = item['fecha_emision']
+                licencia.fecha_vencimiento = item['fecha_vencimiento']
+                if 'especialidades' in item:
+                    licencia.especialidades = item['especialidades']
+                licencia.save()
+
+        if 'maquinarias' in datos:
+            actuales = {m.id_maquinaria_id: m for m in usuario.maquinarias.all()}
+            entrantes = {m['id_maquinaria'].pk for m in datos['maquinarias']}
+            usuario.maquinarias.exclude(id_maquinaria__in=entrantes).delete()
+            for item in datos['maquinarias']:
+                certificacion = actuales.get(item['id_maquinaria'].pk) or UsuarioMaquinaria(
+                    id_usuario=usuario, id_maquinaria=item['id_maquinaria'])
+                certificacion.fecha_vencimiento = item.get('fecha_vencimiento')
+                certificacion.save()

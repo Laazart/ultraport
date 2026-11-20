@@ -18,7 +18,9 @@ from rest_framework.pagination import PageNumberPagination
 from .serializers import (
     PuestoSerializer, TipoLicenciaSerializer, MaquinariaSerializer,
     UsuarioPuestoSerializer, UsuarioLicenciaSerializer, UsuarioMaquinariaSerializer,
+    CompetenciasSerializer, competencias_de,
 )
+from rest_framework.decorators import action
 import logging
 
 logger = logging.getLogger(__name__)
@@ -127,6 +129,22 @@ class UsuarioViewSet(viewsets.ModelViewSet):
             .annotate(nombre_completo=Concat('nombres', Value(' '), 'apellidos'))
             .filter(filtro)
         )
+
+    @action(detail=True, methods=['get', 'put'], url_path='competencias')
+    def competencias(self, request, pk=None):
+        """Contrato, puestos, licencias y maquinaria certificada del usuario.
+
+        PUT reemplaza las listas enviadas (puestos, licencias, maquinarias) y
+        devuelve `advertencias` que no bloquean el guardado.
+        """
+        usuario = self.get_object()
+        advertencias = []
+        if request.method == 'PUT':
+            serializer = CompetenciasSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            serializer.guardar(usuario)
+            advertencias = serializer.advertencias(usuario)
+        return Response({**competencias_de(usuario), 'advertencias': advertencias})
 
     def destroy(self, request, *args, **kwargs):
         usuario = self.get_object()

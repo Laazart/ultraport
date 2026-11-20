@@ -1,17 +1,57 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import userService, { contratoService } from '../../services/userService';
+import userService, {
+  contratoService, competenciaService, catalogoService, etiquetaContrato, aplanarErrores,
+} from '../../services/userService';
 import TextoRol from '../../components/TextoRol';
 import BotonCargando from '../../components/BotonCargando';
 import { esTimeout, MENSAJE_TIMEOUT } from '../../services/api';
-import './GestionDeUsuarios.css'; 
+import './GestionDeUsuarios.css';
 import { validarRut } from '../../services/tools'
+
+// Claves locales para las filas de licencias y máquinas (no son ids de BD).
+let ultimaClave = 0;
+const nuevaClave = () => ++ultimaClave;
+
+// Fecha local de hoy en formato YYYY-MM-DD (comparable como texto).
+const hoyISO = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
+const mensajeDeError = (error, porDefecto) => {
+  if (esTimeout(error)) return MENSAJE_TIMEOUT;
+  const mensajes = aplanarErrores(error.response?.data);
+  return mensajes.length ? mensajes.join(' ') : porDefecto;
+};
 
 const FormularioUsuario = () => {
   const navigate = useNavigate();
   const { id } = useParams();
   const esModoEdicion = Boolean(id);
   const [contratos, setContratos] = useState([]);
+  const [catalogo, setCatalogo] = useState({ puestos: [], tiposLicencia: [], maquinarias: [] });
+  const [puestos, setPuestos] = useState([]);
+  const [licencias, setLicencias] = useState([]);
+  const [maquinarias, setMaquinarias] = useState([]);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const cargarCatalogo = async () => {
+      try {
+        const [listaPuestos, tiposLicencia, listaMaquinarias] = await Promise.all([
+          catalogoService.getPuestos(),
+          catalogoService.getTiposLicencia(),
+          catalogoService.getMaquinarias(),
+        ]);
+        setCatalogo({ puestos: listaPuestos, tiposLicencia, maquinarias: listaMaquinarias });
+      } catch (error) {
+        console.error('Error al cargar catálogos:', error.response?.data || error);
+        setError(esTimeout(error) ? MENSAJE_TIMEOUT : 'No se pudieron cargar puestos, licencias y máquinas.');
+      }
+    };
+    cargarCatalogo();
+  }, []);
 
   useEffect(() => {
     const cargarContratos = async () => {
@@ -42,8 +82,7 @@ const FormularioUsuario = () => {
     estado: 'activo',
     id_rol: ''
   });
-  
-  const [error, setError] = useState(null);
+
   const [cargando, setCargando] = useState(esModoEdicion); 
   const [guardando, setGuardando] = useState(false);
 
@@ -55,7 +94,22 @@ const FormularioUsuario = () => {
 
   const cargarDatosUsuario = async (userId) => {
     try {
-      const data = await userService.getUsuarioById(userId);
+      const [data, competencias] = await Promise.all([
+        userService.getUsuarioById(userId),
+        competenciaService.getCompetencias(userId),
+      ]);
+      setPuestos(competencias.puestos.map((p) => p.id_puesto));
+      setLicencias(competencias.licencias.map((l) => ({
+        clave: nuevaClave(),
+        id_tipo_licencia: String(l.id_tipo_licencia),
+        fecha_emision: l.fecha_emision,
+        fecha_vencimiento: l.fecha_vencimiento,
+      })));
+      setMaquinarias(competencias.maquinarias.map((m) => ({
+        clave: nuevaClave(),
+        id_maquinaria: String(m.id_maquinaria),
+        fecha_vencimiento: m.fecha_vencimiento ?? '',
+      })));
       setFormData({
         rut: data.rut || '',
         nombres: data.nombres || '',
@@ -80,12 +134,89 @@ const FormularioUsuario = () => {
     setFormData({ ...formData, [name]: value });
   };
 
+  // --- Competencias ---
+
+  const nombreLicencia = (idTipo) =>
+    catalogo.tiposLicencia.find((t) => String(t.id_tipo_licencia) === String(idTipo))?.nombre_licencia ?? '';
+
+  const togglePuesto = (idPuesto) => {
+    setPuestos((actuales) => (actuales.includes(idPuesto)
+      ? actuales.filter((p) => p !== idPuesto)
+      : [...actuales, idPuesto]));
+  };
+
+  const agregarLicencia = () => setLicencias((filas) => [
+    ...filas, { clave: nuevaClave(), id_tipo_licencia: '', fecha_emision: '', fecha_vencimiento: '' },
+  ]);
+  const cambiarLicencia = (clave, campo, valor) => setLicencias((filas) =>
+    filas.map((f) => (f.clave === clave ? { ...f, [campo]: valor } : f)));
+  const quitarLicencia = (clave) => setLicencias((filas) => filas.filter((f) => f.clave !== clave));
+
+  const agregarMaquinaria = () => setMaquinarias((filas) => [
+    ...filas, { clave: nuevaClave(), id_maquinaria: '', fecha_vencimiento: '' },
+  ]);
+  const cambiarMaquinaria = (clave, campo, valor) => setMaquinarias((filas) =>
+    filas.map((f) => (f.clave === clave ? { ...f, [campo]: valor } : f)));
+  const quitarMaquinaria = (clave) => setMaquinarias((filas) => filas.filter((f) => f.clave !== clave));
+
+  // Aviso (no bloquea) si la máquina requiere una licencia que no está en la lista o está vencida.
+  const avisoLicenciaRequerida = (fila) => {
+    const maquina = catalogo.maquinarias.find((m) => String(m.id_maquinaria) === fila.id_maquinaria);
+    const requerida = maquina?.id_tipo_licencia_requerida;
+    if (!requerida) return null;
+    const licencia = licencias.find((l) => l.id_tipo_licencia === String(requerida));
+    if (!licencia) return `Requiere licencia ${nombreLicencia(requerida)}, que no tiene.`;
+    if (licencia.fecha_vencimiento && licencia.fecha_vencimiento < hoyISO()) {
+      return `Requiere licencia ${nombreLicencia(requerida)}, que está vencida.`;
+    }
+    return null;
+  };
+
+  const validarCompetencias = () => {
+    for (const l of licencias) {
+      if (!l.id_tipo_licencia || !l.fecha_emision || !l.fecha_vencimiento) {
+        return 'Completa tipo, emisión y vencimiento de cada licencia (o quita la fila).';
+      }
+      if (l.fecha_vencimiento <= l.fecha_emision) {
+        return `La licencia ${nombreLicencia(l.id_tipo_licencia)} debe vencer después de su emisión.`;
+      }
+    }
+    if (new Set(licencias.map((l) => l.id_tipo_licencia)).size !== licencias.length) {
+      return 'Hay licencias repetidas.';
+    }
+    if (maquinarias.some((m) => !m.id_maquinaria)) {
+      return 'Selecciona la máquina de cada certificación (o quita la fila).';
+    }
+    if (new Set(maquinarias.map((m) => m.id_maquinaria)).size !== maquinarias.length) {
+      return 'Hay máquinas repetidas.';
+    }
+    return null;
+  };
+
+  const competenciasAEnviar = () => ({
+    puestos,
+    licencias: licencias.map((l) => ({
+      id_tipo_licencia: Number(l.id_tipo_licencia),
+      fecha_emision: l.fecha_emision,
+      fecha_vencimiento: l.fecha_vencimiento,
+    })),
+    maquinarias: maquinarias.map((m) => ({
+      id_maquinaria: Number(m.id_maquinaria),
+      fecha_vencimiento: m.fecha_vencimiento || null,
+    })),
+  });
+
   const handleGuardar = async (e) => {
     e.preventDefault();
     setError(null);
     if (!validarRut(formData.rut)) {
       setError("El RUT ingresado no es válido. Verifica que esté correcto.");
-      return; 
+      return;
+    }
+    const errorCompetencias = validarCompetencias();
+    if (errorCompetencias) {
+      setError(errorCompetencias);
+      return;
     }
     const datosAEnviar = { ...formData, id_contrato: formData.id_contrato ? Number(formData.id_contrato): null};
     if (esModoEdicion && !datosAEnviar.password) {
@@ -94,28 +225,42 @@ const FormularioUsuario = () => {
     if (datosAEnviar.id_rol === '') datosAEnviar.id_rol = null;
 
     setGuardando(true);
+    let idUsuario = id;
     try {
       if (esModoEdicion) {
         await userService.actualizarUsuario(id, datosAEnviar);
-        alert("Usuario actualizado correctamente.");
       } else {
-        await userService.crearUsuario(datosAEnviar);
-        alert("Usuario creado exitosamente.");
+        const creado = await userService.crearUsuario(datosAEnviar);
+        idUsuario = creado.id_usuario;
       }
-      navigate('/usuarios');
     } catch (error) {
       console.error("Error al guardar:", error.response?.data);
-      let errorMsg;
-      if (esTimeout(error)) {
-        errorMsg = MENSAJE_TIMEOUT;
-      } else if (error.response?.data) {
-        errorMsg = Object.values(error.response.data).flat().join(' ');
-      } else {
-        errorMsg = "Hubo un error al procesar la solicitud. Revisa los datos.";
-      }
-      setError(errorMsg);
+      setError(mensajeDeError(error, "Hubo un error al procesar la solicitud. Revisa los datos."));
       setGuardando(false);
+      return;
     }
+
+    let advertencias = [];
+    try {
+      const respuesta = await competenciaService.guardarCompetencias(idUsuario, competenciasAEnviar());
+      advertencias = respuesta.advertencias ?? [];
+    } catch (error) {
+      console.error("Error al guardar competencias:", error.response?.data);
+      const motivo = mensajeDeError(error, "No se pudieron guardar las competencias.");
+      if (esModoEdicion) {
+        setError(`Los datos del usuario se guardaron, pero no sus competencias: ${motivo}`);
+        setGuardando(false);
+      } else {
+        alert(`El usuario se creó, pero no sus competencias: ${motivo}\nCorrígelas en la edición del usuario.`);
+        setGuardando(false);
+        navigate(`/usuarios/editar/${idUsuario}`);
+      }
+      return;
+    }
+
+    const titulo = esModoEdicion ? "Usuario actualizado correctamente." : "Usuario creado exitosamente.";
+    alert(advertencias.length ? `${titulo}\n\nAdvertencias:\n- ${advertencias.join('\n- ')}` : titulo);
+    navigate('/usuarios');
   };
 
   const labelStyle = {
@@ -147,7 +292,7 @@ const FormularioUsuario = () => {
         <p>{esModoEdicion ? 'Modifica los datos del trabajador' : 'Completa los datos para registrar a un nuevo trabajador'}</p>
       </div>
 
-      <div className="up-dashboard-container" style={{maxWidth: '700px'}}>
+      <div className="up-dashboard-container" style={{maxWidth: '800px'}}>
         <div className="up-table-wrapper p-4 p-md-5" style={{textAlign: 'left'}}>
           
           {error && (
@@ -269,7 +414,7 @@ const FormularioUsuario = () => {
                           <option value="">Selecciona un contrato...</option>
                           {contratos.map((contrato) => (
                             <option key={contrato.id_contrato} value={contrato.id_contrato}>
-                              {contrato.tipo}
+                              {etiquetaContrato(contrato)}
                             </option>
                           ))}
                         </select>
@@ -306,8 +451,170 @@ const FormularioUsuario = () => {
                       </select>
                     </div>
                   )}
-                  {/* botones */}
-              </div>       
+              </div>
+
+              {/* Competencias */}
+              <hr style={{borderColor: '#1E3349', margin: '32px 0 24px'}} />
+              <h5 className="text-light mb-1">Competencias</h5>
+              <p style={{color: '#A0B2C6', fontSize: '13px'}}>
+                Puestos, licencias y maquinaria que el validador de asignación considera para los turnos.
+              </p>
+
+              <div className="mb-4">
+                <label className="form-label" style={labelStyle}>Puestos</label>
+                {catalogo.puestos.length === 0 ? (
+                  <div style={{color: '#A0B2C6', fontSize: '14px'}}>No hay puestos registrados.</div>
+                ) : (
+                  <div className="d-flex flex-wrap gap-3">
+                    {catalogo.puestos.map((p) => (
+                      <div className="form-check" key={p.id_puesto}>
+                        <input
+                          className="form-check-input"
+                          type="checkbox"
+                          id={`puesto-${p.id_puesto}`}
+                          checked={puestos.includes(p.id_puesto)}
+                          onChange={() => togglePuesto(p.id_puesto)}
+                        />
+                        <label className="form-check-label text-light" htmlFor={`puesto-${p.id_puesto}`}>
+                          {p.nombre_puesto}
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="mb-4">
+                <label className="form-label" style={labelStyle}>Licencias</label>
+                {licencias.length === 0 && (
+                  <div className="mb-2" style={{color: '#A0B2C6', fontSize: '14px'}}>Sin licencias registradas.</div>
+                )}
+                {licencias.map((fila) => {
+                  const vencida = fila.fecha_vencimiento && fila.fecha_vencimiento < hoyISO();
+                  return (
+                    <div className="row g-2 mb-2 align-items-end" key={fila.clave}>
+                      <div className="col-md-4">
+                        <small style={{color: '#A0B2C6'}}>Tipo</small>
+                        <select
+                          className="form-select up-input"
+                          value={fila.id_tipo_licencia}
+                          onChange={(e) => cambiarLicencia(fila.clave, 'id_tipo_licencia', e.target.value)}
+                          required
+                        >
+                          <option value="">Selecciona...</option>
+                          {catalogo.tiposLicencia
+                            .filter((t) => String(t.id_tipo_licencia) === fila.id_tipo_licencia
+                              || !licencias.some((l) => l.id_tipo_licencia === String(t.id_tipo_licencia)))
+                            .map((t) => (
+                              <option key={t.id_tipo_licencia} value={t.id_tipo_licencia}>{t.nombre_licencia}</option>
+                            ))}
+                        </select>
+                      </div>
+                      <div className="col-md-3">
+                        <small style={{color: '#A0B2C6'}}>Emisión</small>
+                        <input
+                          type="date"
+                          className="form-control up-input"
+                          value={fila.fecha_emision}
+                          onChange={(e) => cambiarLicencia(fila.clave, 'fecha_emision', e.target.value)}
+                          required
+                        />
+                      </div>
+                      <div className="col-md-3">
+                        <small style={{color: vencida ? '#F2867D' : '#A0B2C6'}}>
+                          Vencimiento{vencida && ' (vencida)'}
+                        </small>
+                        <input
+                          type="date"
+                          className="form-control up-input"
+                          style={vencida ? {borderColor: '#E2574C'} : undefined}
+                          value={fila.fecha_vencimiento}
+                          min={fila.fecha_emision || undefined}
+                          onChange={(e) => cambiarLicencia(fila.clave, 'fecha_vencimiento', e.target.value)}
+                          required
+                        />
+                      </div>
+                      <div className="col-md-2">
+                        <button type="button" className="btn-secondary w-100" onClick={() => quitarLicencia(fila.clave)}>
+                          <i className="bi bi-trash"></i> Quitar
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+                <button
+                  type="button"
+                  className="btn-secondary mt-1"
+                  onClick={agregarLicencia}
+                  disabled={licencias.length >= catalogo.tiposLicencia.length}
+                >
+                  <i className="bi bi-plus-lg"></i> Agregar licencia
+                </button>
+              </div>
+
+              <div className="mb-4">
+                <label className="form-label" style={labelStyle}>Maquinaria certificada</label>
+                {maquinarias.length === 0 && (
+                  <div className="mb-2" style={{color: '#A0B2C6', fontSize: '14px'}}>Sin certificaciones registradas.</div>
+                )}
+                {maquinarias.map((fila) => {
+                  const vencida = fila.fecha_vencimiento && fila.fecha_vencimiento < hoyISO();
+                  const aviso = avisoLicenciaRequerida(fila);
+                  return (
+                    <div className="mb-2" key={fila.clave}>
+                      <div className="row g-2 align-items-end">
+                        <div className="col-md-5">
+                          <small style={{color: '#A0B2C6'}}>Máquina</small>
+                          <select
+                            className="form-select up-input"
+                            value={fila.id_maquinaria}
+                            onChange={(e) => cambiarMaquinaria(fila.clave, 'id_maquinaria', e.target.value)}
+                            required
+                          >
+                            <option value="">Selecciona...</option>
+                            {catalogo.maquinarias
+                              .filter((m) => String(m.id_maquinaria) === fila.id_maquinaria
+                                || !maquinarias.some((f) => f.id_maquinaria === String(m.id_maquinaria)))
+                              .map((m) => (
+                                <option key={m.id_maquinaria} value={m.id_maquinaria}>{m.nombre_maquinaria}</option>
+                              ))}
+                          </select>
+                        </div>
+                        <div className="col-md-5">
+                          <small style={{color: vencida ? '#F2867D' : '#A0B2C6'}}>
+                            Vencimiento (opcional){vencida && ' (vencida)'}
+                          </small>
+                          <input
+                            type="date"
+                            className="form-control up-input"
+                            style={vencida ? {borderColor: '#E2574C'} : undefined}
+                            value={fila.fecha_vencimiento}
+                            onChange={(e) => cambiarMaquinaria(fila.clave, 'fecha_vencimiento', e.target.value)}
+                          />
+                        </div>
+                        <div className="col-md-2">
+                          <button type="button" className="btn-secondary w-100" onClick={() => quitarMaquinaria(fila.clave)}>
+                            <i className="bi bi-trash"></i> Quitar
+                          </button>
+                        </div>
+                      </div>
+                      {aviso && (
+                        <div className="mt-1" style={{color: '#F2A63D', fontSize: '13px'}}>
+                          <i className="bi bi-exclamation-triangle me-1"></i>{aviso}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+                <button
+                  type="button"
+                  className="btn-secondary mt-1"
+                  onClick={agregarMaquinaria}
+                  disabled={maquinarias.length >= catalogo.maquinarias.length}
+                >
+                  <i className="bi bi-plus-lg"></i> Agregar máquina
+                </button>
+              </div>
               <hr style={{borderColor: '#1E3349', margin: '40px 0 20px'}} />
               <div className="d-flex justify-content-end gap-3 mt-4">
                 <button type="button" onClick={() => navigate('/usuarios')} className="btn-secondary">
