@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import authService from '../../services/auth';
-import { esTimeout, MENSAJE_TIMEOUT } from '../../services/api';
+import { mensajeError } from '../../services/api';
 import CampoPassword from '../../components/CampoPassword';
 import './login.css';
 
@@ -44,7 +44,9 @@ function RestablecerPassword() {
       setMensaje(response.mensaje);
       setTimeout(() => navigate('/login'), 3000); 
     } catch (err) {
-      setError(esTimeout(err) ? MENSAJE_TIMEOUT : err.response?.data?.error || 'El enlace es inválido o ha expirado.');
+      // {error} si el token no sirve; {password: [...]} si la contraseña se rechaza
+      // (p. ej. "No puedes usar una contraseña que ya utilizaste anteriormente.").
+      setError(mensajeError(err, 'El enlace es inválido o ha expirado.'));
     } finally {
       setCargando(false);
     }

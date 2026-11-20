@@ -3,6 +3,7 @@ from rest_framework_simplejwt.settings import api_settings as jwt_settings
 from rest_framework.exceptions import AuthenticationFailed
 from .models import Usuario, Rol , Contrato, Puesto, UsuarioPuesto, TipoLicencia, UsuarioLicencia, Maquinaria, UsuarioMaquinaria
 from .services import buscar_usuario_por_identificador
+from .historial_password import MENSAJE_PASSWORD_REUTILIZADA, password_reutilizada
 from rest_framework import serializers
 from django.contrib.auth import authenticate
 from django.contrib.auth.models import update_last_login
@@ -115,6 +116,9 @@ class UsuarioSerializer(serializers.ModelSerializer):
     def validate(self, attrs):
         if self.instance is None and not attrs.get('password'):
             raise serializers.ValidationError({'password': 'La contraseña es obligatoria.'})
+        if self.instance is not None and attrs.get('password') \
+                and password_reutilizada(self.instance, attrs['password']):
+            raise serializers.ValidationError({'password': MENSAJE_PASSWORD_REUTILIZADA})
         return attrs
     def create(self, validated_data):
         password = validated_data.pop('password')

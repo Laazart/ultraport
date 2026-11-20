@@ -104,6 +104,10 @@ AUTH_PASSWORD_VALIDATORS = [
     {
         'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator',
     },
+    {
+        # Actual + últimas 5 (usuarios/historial_password.py).
+        'NAME': 'usuarios.historial_password.NoReutilizarPasswordValidator',
+    },
 ]
 
 

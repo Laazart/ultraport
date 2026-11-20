@@ -10,6 +10,7 @@ from .services import (
     buscar_usuario_por_identificador, crear_token_recuperacion, enviar_correo_recuperacion, validar_token,
 )
 from .permissions import Permisos, TienePermiso
+from .historial_password import MENSAJE_PASSWORD_REUTILIZADA, password_reutilizada
 from .models import Usuario, Rol, Contrato, Puesto, TipoLicencia, Maquinaria, UsuarioPuesto, UsuarioLicencia, UsuarioMaquinaria
 from django.utils import timezone
 from django.db.models import Q, Value
@@ -77,8 +78,15 @@ class RestablecerPasswordView(APIView):
             )
 
         usuario = registro.id_usuario
-        usuario.set_password(serializer.validated_data['password'])
-        usuario.save(update_fields=['password'])
+        password = serializer.validated_data['password']
+        if password_reutilizada(usuario, password):
+            # El token no se marca como usado: puede reintentar con otra contraseña.
+            return Response(
+                {'password': [MENSAJE_PASSWORD_REUTILIZADA]},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        usuario.set_password(password)
+        usuario.save(update_fields=['password'])  # registra la anterior en el historial
 
         registro.usado = True
         registro.save(update_fields=['usado'])

@@ -5,6 +5,9 @@ from django.core.validators import RegexValidator
 from django.db.models.signals import post_migrate
 from django.dispatch import receiver
 from django.utils import timezone
+from django.contrib.auth.hashers import check_password
+from django.db import transaction
+from .historial_password import registrar_password_anterior
 class Rol(models.Model):
 
     id_rol = models.AutoField(primary_key=True)
@@ -110,11 +113,32 @@ class Usuario(AbstractBaseUser, PermissionsMixin):
 
     USERNAME_FIELD = 'correo' 
     REQUIRED_FIELDS = ['rut', 'nombres', 'apellidos']
+    def set_password(self, raw_password):
+        # Recuerda el hash reemplazado para guardarlo en el historial al hacer save().
+        # Se omite al crear el usuario y cuando es la misma contraseña (p. ej. el
+        # re-hash que hace Django al actualizar el algoritmo).
+        if (
+            self.pk is not None
+            and getattr(self, '_hash_anterior', None) is None
+            and self.has_usable_password()
+            and not check_password(raw_password, self.password)
+        ):
+            self._hash_anterior = self.password
+        super().set_password(raw_password)
+
     def save(self, *args, **kwargs):
         if self.rut:
             validar_rut_modulo_11(self.rut)
             self.rut = normalizar_rut(self.rut)
-        super().save(*args, **kwargs)
+        hash_anterior = getattr(self, '_hash_anterior', None)
+        if hash_anterior is None:
+            super().save(*args, **kwargs)
+            return
+        with transaction.atomic():
+            super().save(*args, **kwargs)
+            registrar_password_anterior(self, hash_anterior)
+        self._hash_anterior = None
+
     def __str__(self):
         return f'{self.nombres} {self.apellidos}'
 
@@ -130,6 +154,20 @@ class TokenRecuperacion(models.Model):
 
     class Meta:
         db_table = 'token_recuperacion'
+
+
+class HistorialPassword(models.Model):
+    """Hashes de contraseñas anteriores (nunca texto plano); se conservan las últimas 5."""
+    id_historial = models.AutoField(primary_key=True)
+    id_usuario = models.ForeignKey(
+        Usuario, on_delete=models.CASCADE, db_column='id_usuario', related_name='historial_passwords'
+    )
+    password_hash = models.CharField(max_length=128)
+    fecha = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        db_table = 'historial_password'
+        ordering = ['-fecha', '-id_historial']
 
 
 
